@@ -3,7 +3,7 @@
 ## Project Scope
 - Plugin: `@goodandready-private/dsh-time-machine`
 - Architecture: DeepSeek Harness Cordis plugin + Web client
-- Canonical path: `/mnt/external/Project/DEV/dhsplugins/dsh-time-machine`
+- Base Directory: `dhsplugins/dsh-time-machine`
 
 ## Rules
 - Tests must pass: `node --test test/*.test.mjs`
