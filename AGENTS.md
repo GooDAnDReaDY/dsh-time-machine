@@ -1,7 +1,7 @@
 # AGENTS.md for dsh-time-machine
 
 ## Project Scope
-- Plugin: `@goodandready-private/dsh-time-machine`
+- Plugin: `@goodandready/dsh-time-machine`
 - Architecture: DeepSeek Harness Cordis plugin + Web client
 - Base Directory: `dhsplugins/dsh-time-machine`
 
