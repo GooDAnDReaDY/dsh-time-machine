@@ -92,9 +92,41 @@ test('host index wires auto-snapshot events and session-aware tools', () => {
   const host = read('lib/index.js');
   assert.ok(host.includes("ctx.events.on('turn/start'"), 'must listen turn/start');
   assert.ok(host.includes("ctx.events.on('approval/asked'"), 'must listen approval/asked');
+  assert.ok(host.includes("ctx.events.on('turn/end'"), 'must listen turn/end for auto-prune');
   assert.ok(host.includes('autoSnapshotEnabled'), 'config gate present');
   assert.ok(host.includes('sessionId'), 'session scoping present');
   assert.ok(host.includes('engine.createSnapshot(label, { sessionId: sid })') || host.includes("engine.createSnapshot(label, { sessionId"), 'auto snap passes sessionId');
+});
+
+test('delete + prune lifecycle', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  const exec = async (cmd, args) => {
+    if (args[0] === 'rev-parse') throw Object.assign(new Error('not a git repo'), { stdout: '' });
+    return { stdout: '' };
+  };
+  const eng = new ShadowSnapshotEngine({ exec, maxSnapshots: 20 });
+  const a = await eng.createSnapshot('a', { sessionId: 'S' });
+  const b = await eng.createSnapshot('b', { sessionId: 'S' });
+  const c = await eng.createSnapshot('c', { sessionId: 'S' });
+  const d = await eng.createSnapshot('d', { sessionId: 'S' });
+  // delete requires confirm
+  await assert.rejects(() => eng.deleteSnapshot(a.id), /confirm/);
+  await assert.rejects(() => eng.deleteSnapshot('nope', { confirm: true }), /not found/);
+  await eng.deleteSnapshot(a.id, { confirm: true });
+  assert.equal(eng.getSnapshot(a.id), null);
+  assert.equal(eng.listSnapshots('S').length, 3);
+  // prune keeps newest N
+  const pr = await eng.pruneSnapshots('S', 2);
+  assert.equal(pr.kept, 2);
+  assert.equal(eng.listSnapshots('S').length, 2);
+  assert.ok(eng.getSnapshot(d.id), 'newest kept');
+  assert.equal(eng.getSnapshot(b.id), null, 'oldest pruned');
+});
+
+test('turn/end auto-prune keeps 3 on success', async () => {
+  const host = read('lib/index.js');
+  assert.ok(host.includes("engine.pruneSnapshots(sid, 3)"), 'prune(keep 3) wired on success');
+  assert.ok(host.includes("outcome === 'success'"), 'success outcome checked');
 });
 
 test('client timeline is session-filtered', () => {
