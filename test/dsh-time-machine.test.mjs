@@ -6,14 +6,14 @@ import { test } from 'node:test';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const read = (name) => fs.readFileSync(path.join(root, name), 'utf8');
 const pkg = JSON.parse(read('package.json'));
-const name = '@goodandready-private/dsh-time-machine';
+const name = '@goodandready/dsh-time-machine';
 
 test('private package identity matches all loader sites', () => {
   assert.equal(pkg.name, name);
   assert.equal(pkg.private, undefined);
-  assert.equal(pkg.publishConfig.registry, 'https://npm.pkg.github.com');
-  assert.ok(read('cordis.patch.yml').includes("name: '@goodandready-private/dsh-time-machine'"));
-  assert.ok(read('lib/client.js').includes("id: '@goodandready-private/dsh-time-machine'"));
+  assert.equal(pkg.publishConfig, undefined);
+  assert.ok(read('cordis.patch.yml').includes("name: '@goodandready/dsh-time-machine'"));
+  assert.ok(read('lib/client.js').includes("id: '@goodandready/dsh-time-machine'"));
 });
 
 test('tracked package sources contain no host-specific infra references', () => {
@@ -95,4 +95,11 @@ test('client card uses plugin.item with prefixed classes and theme vars', () => 
   assert.ok(text.includes('IconChevronDownOutline14') || text.includes('FallbackChevron'));
   // hooks before returns: ensure useState appears before early return pattern
   assert.ok(text.indexOf('useState') < text.indexOf('expanded ?'));
+});
+
+test('client registers betterSidebar tab with fallback', () => {
+  const text = read('lib/client.js');
+  assert.ok(text.includes('betterSidebar') && text.includes('registerTab'), 'missing betterSidebar registerTab');
+  assert.ok(text.includes("id: 'time-machine'") || text.includes('id: "time-machine"'));
+  assert.ok(text.includes('TimeMachineTab') && text.includes('component'));
 });

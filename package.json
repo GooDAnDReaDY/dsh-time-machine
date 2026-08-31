@@ -1,5 +1,5 @@
 {
-  "name": "@goodandready-private/dsh-time-machine",
+  "name": "@goodandready/dsh-time-machine",
   "version": "0.1.0",
   "description": "DSH plugin for smart checkpoints, workspace safety guards, and instant rollback",
   "type": "module",
@@ -29,11 +29,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/goodandready-private/dsh-time-machine.git"
+    "url": "git+https://github.com/GooDAnDReaDY/dsh-time-machine.git"
   },
-  "homepage": "https://github.com/goodandready-private/dsh-time-machine#readme",
+  "homepage": "https://github.com/GooDAnDReaDY/dsh-time-machine#readme",
   "bugs": {
-    "url": "https://github.com/goodandready-private/dsh-time-machine/issues"
+    "url": "https://github.com/GooDAnDReaDY/dsh-time-machine/issues"
   },
   "license": "MIT",
   "dsh": {
@@ -55,8 +55,5 @@
     "@deepseek-ai/dsh-settings": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
     "@deepseek-ai/schemastery": "^3.18.1"
-  },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
   }
 }
