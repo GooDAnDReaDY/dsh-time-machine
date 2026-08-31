@@ -52,6 +52,57 @@ test('ShadowSnapshotEngine create/list/rollback/diff with maxSnapshots', async (
   await assert.rejects(() => eng.diff('missing'), /not found/);
 });
 
+test('ShadowSnapshotEngine is session-scoped with per-session trim', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  const exec = async (cmd, args) => {
+    if (args[0] === 'rev-parse') throw Object.assign(new Error('not a git repo'), { stdout: '' });
+    return { stdout: '' };
+  };
+  const eng = new ShadowSnapshotEngine({ exec, maxSnapshots: 2 });
+  const sA = await eng.createSnapshot('a1', { sessionId: 'sessA' });
+  const sA2 = await eng.createSnapshot('a2', { sessionId: 'sessA' });
+  const sB = await eng.createSnapshot('b1', { sessionId: 'sessB' });
+  const sA3 = await eng.createSnapshot('a3', { sessionId: 'sessA' });
+  // per-session trim: sessA keeps newest 2, sessB unaffected
+  assert.equal(eng.getSnapshot(sA.id), null, 'oldest sessA evicted');
+  assert.ok(eng.getSnapshot(sA2.id));
+  assert.ok(eng.getSnapshot(sA3.id));
+  assert.ok(eng.getSnapshot(sB.id));
+  // list filters by session
+  assert.deepEqual(eng.listSnapshots('sessA').map(s => s.sessionId), ['sessA', 'sessA']);
+  assert.deepEqual(eng.listSnapshots('sessB').map(s => s.sessionId), ['sessB']);
+  // global list still returns all
+  assert.equal(eng.listSnapshots().length, 3);
+  // git ref path is session-scoped
+  const gitEng = new ShadowSnapshotEngine({ exec: async (cmd, args) => {
+    if (args[0] === 'rev-parse') return { stdout: 'true\n' };
+    if (args[0] === 'add') return { stdout: '' };
+    if (args[0] === 'write-tree') return { stdout: 'abc123tree\n' };
+    if (args[0] === 'commit-tree') return { stdout: 'def456commit\n' };
+    if (args[0] === 'update-ref') return { stdout: '' };
+    return { stdout: '' };
+  }, maxSnapshots: 5 });
+  const snap = await gitEng.createSnapshot('x', { sessionId: 'S1' });
+  assert.equal(snap.ref, `refs/dsh-time-machine/S1/${snap.id}`);
+  const snapNoSession = await gitEng.createSnapshot('y');
+  assert.equal(snapNoSession.ref, `refs/dsh-time-machine/${snapNoSession.id}`);
+});
+
+test('host index wires auto-snapshot events and session-aware tools', () => {
+  const host = read('lib/index.js');
+  assert.ok(host.includes("ctx.events.on('turn/start'"), 'must listen turn/start');
+  assert.ok(host.includes("ctx.events.on('approval/asked'"), 'must listen approval/asked');
+  assert.ok(host.includes('autoSnapshotEnabled'), 'config gate present');
+  assert.ok(host.includes('sessionId'), 'session scoping present');
+  assert.ok(host.includes('engine.createSnapshot(label, { sessionId: sid })') || host.includes("engine.createSnapshot(label, { sessionId"), 'auto snap passes sessionId');
+});
+
+test('client timeline is session-filtered', () => {
+  const text = read('lib/client.js');
+  assert.ok(text.includes("'/dsh-time-machine/snapshots' + q") || text.includes("'/dsh-time-machine/snapshots'+q") || text.includes("'/dsh-time-machine/snapshots'"), 'session-filtered fetch in Timeline');
+  assert.ok(text.includes('sessionId'), 'sessionId helper in client');
+});
+
 test('ShadowSnapshotEngine uses git shadow refs when repo present', async () => {
   const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
   const log = [];
