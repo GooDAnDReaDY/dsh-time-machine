@@ -1,2 +1,3 @@
-- id: dsh-time-machine
-  name: '@goodandready/dsh-time-machine'
+- insert:
+    - id: dsh-time-machine
+      name: '@goodandready/dsh-time-machine'
