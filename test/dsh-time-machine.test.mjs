@@ -103,3 +103,11 @@ test('client registers betterSidebar tab with fallback', () => {
   assert.ok(text.includes("id: 'time-machine'") || text.includes('id: "time-machine"'));
   assert.ok(text.includes('TimeMachineTab') && text.includes('component'));
 });
+
+test('browser entry compatible with DSH 0.1.2-alpha.2 (no dsh-client-runtime)', () => {
+  const inject = pkg.dsh?.client?.inject || [];
+  assert.equal(inject.includes('@deepseek-ai/dsh-client-runtime'), false, 'obsolete @deepseek-ai/dsh-client-runtime must be removed for alpha2');
+  assert.ok(inject.includes('@deepseek-ai/dsh-client-ui-slots'), 'must keep @deepseek-ai/dsh-client-ui-slots');
+  const client = read('lib/client.js');
+  assert.equal(client.includes('@deepseek-ai/dsh-client-runtime'), false, 'client.js must not require obsolete runtime');
+});
