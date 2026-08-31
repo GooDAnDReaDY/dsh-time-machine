@@ -111,3 +111,11 @@ test('browser entry compatible with DSH 0.1.2-alpha.2 (no dsh-client-runtime)', 
   const client = read('lib/client.js');
   assert.equal(client.includes('@deepseek-ai/dsh-client-runtime'), false, 'client.js must not require obsolete runtime');
 });
+
+test('client registration is declaration-safe (alpha2 SlotCore)', () => {
+  const text = read('lib/client.js');
+  assert.ok(text.includes("ctx.slots.inject('settings.plugin.item'") || text.includes('ctx.slots.inject("settings.plugin.item"'), 'must use slots.inject for settings.plugin.item');
+  assert.ok(text.includes("ctx.inject(['betterSidebar']") || text.includes('ctx.inject(["betterSidebar"]'), 'betterSidebar via inject single path');
+  // old direct double-path must be gone (call site, not definition)
+  assert.equal((text.match(/registerBetterSidebar\(ctx\);/g) || []).length, 0, 'should not have direct registerBetterSidebar(ctx); double path');
+});
