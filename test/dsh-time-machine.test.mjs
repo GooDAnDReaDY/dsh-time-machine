@@ -11,7 +11,7 @@ const name = '@goodandready/dsh-time-machine';
 test('private package identity matches all loader sites', () => {
   assert.equal(pkg.name, name);
   assert.equal(pkg.private, undefined);
-  assert.equal(pkg.publishConfig, undefined);
+  assert.equal(pkg.publishConfig.access, 'public');
   assert.ok(read('cordis.patch.yml').includes("name: '@goodandready/dsh-time-machine'"));
   assert.ok(read('lib/client.js').includes("id: '@goodandready/dsh-time-machine'"));
 });
