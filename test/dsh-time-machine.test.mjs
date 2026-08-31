@@ -123,6 +123,47 @@ test('delete + prune lifecycle', async () => {
   assert.equal(eng.getSnapshot(b.id), null, 'oldest pruned');
 });
 
+test('loadFromRefs restores checkpoints after restart', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  // simulate git repo with two shadow refs; treat as a fresh engine (restart)
+  const calls = [];
+  const exec = async (cmd, args) => {
+    calls.push(args[0]);
+    if (args[0] === 'rev-parse') return { stdout: 'true\n' };
+    if (args[0] === 'for-each-ref') {
+      return { stdout: 'refs/dsh-time-machine/S1/aaa1\0c111aaa\nrefs/dsh-time-machine/S1/bbb2\0c222bbb\n' };
+    }
+    if (args[0] === 'log') {
+      // ref -> time|label
+      const ref = args[args.length - 1];
+      if (ref === 'refs/dsh-time-machine/S1/aaa1') return { stdout: '1700000000\0first\0' };
+      if (ref === 'refs/dsh-time-machine/S1/bbb2') return { stdout: '1700000100\0second\0' };
+      return { stdout: '' };
+    }
+    return { stdout: '' };
+  };
+  const eng = new ShadowSnapshotEngine({ exec, maxSnapshots: 5 });
+  const n = await eng.loadFromRefs();
+  assert.equal(n, 2);
+  assert.equal(eng.listSnapshots().length, 2);
+  const list = eng.listSnapshots('S1');
+  assert.equal(list.length, 2);
+  assert.equal(list[0].label, 'second', 'newest first');
+  assert.equal(list[0].sessionId, 'S1');
+  assert.equal(list[1].label, 'first');
+  // new snapshot beyond restored keeps later seq (created last)
+  const after = await eng.createSnapshot('third', { sessionId: 'S1' });
+  const all = eng.listSnapshots('S1');
+  assert.equal(all.length, 3);
+  assert.equal(all[0].label, 'third');
+  assert.ok(after.seq > list[0].seq, 'created after restore has larger seq');
+});
+
+test('host apply restores refs on boot', () => {
+  const host = read('lib/index.js');
+  assert.ok(host.includes('engine.loadFromRefs()') || host.includes('engine.loadFromRefs'), 'must load refs on apply');
+});
+
 test('turn/end auto-prune keeps 3 on success', async () => {
   const host = read('lib/index.js');
   assert.ok(host.includes("engine.pruneSnapshots(sid, 3)"), 'prune(keep 3) wired on success');
