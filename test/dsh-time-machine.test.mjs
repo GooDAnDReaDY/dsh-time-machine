@@ -243,3 +243,87 @@ test('client registration is declaration-safe (alpha2 SlotCore)', () => {
   // old direct double-path must be gone (call site, not definition)
   assert.equal((text.match(/registerBetterSidebar\(ctx\);/g) || []).length, 0, 'should not have direct registerBetterSidebar(ctx); double path');
 });
+
+test('safe rollback executes read-tree and clean without moving branch HEAD', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  const commands = [];
+  const exec = async (cmd, args) => {
+    commands.push(args[0]);
+    if (args[0] === 'rev-parse') return { stdout: 'true\n' };
+    return { stdout: '' };
+  };
+  const eng = new ShadowSnapshotEngine({ exec });
+  eng.snapshots.push({ id: 's1', commit: 'abc123commit', ref: 'refs/dsh-time-machine/s1' });
+  const res = await eng.rollbackSnapshot('s1', { confirm: true });
+  assert.ok(res.rolledBack);
+  assert.ok(commands.includes('read-tree'), 'must use read-tree');
+  assert.ok(commands.includes('checkout-index'), 'must checkout index');
+  assert.ok(commands.includes('clean'), 'must clean untracked files');
+  assert.equal(commands.includes('reset'), false, 'MUST NOT use git reset which destroys branch HEAD');
+});
+
+test('shadow snapshots use isolated GIT_INDEX_FILE and author env', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  let capturedEnv = null;
+  const exec = async (cmd, args, opts) => {
+    if (args[0] === 'add') capturedEnv = opts?.env;
+    if (args[0] === 'rev-parse') {
+      if (args[1] === '--git-dir') return { stdout: '.git\n' };
+      return { stdout: 'true\n' };
+    }
+    if (args[0] === 'write-tree') return { stdout: 'treehash\n' };
+    if (args[0] === 'commit-tree') return { stdout: 'commithash\n' };
+    return { stdout: '' };
+  };
+  const eng = new ShadowSnapshotEngine({ exec });
+  const snap = await eng.createSnapshot('test-shadow');
+  assert.ok(snap.commit);
+  assert.ok(capturedEnv?.GIT_INDEX_FILE?.includes('tm_index_'), 'must isolate staging area via GIT_INDEX_FILE');
+  assert.equal(capturedEnv?.GIT_AUTHOR_NAME, 'DSH Time Machine');
+});
+
+test('trimming evicted snapshots deletes their git refs', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  const deletedRefs = [];
+  const exec = async (cmd, args) => {
+    if (args[0] === 'update-ref' && args[1] === '-d') {
+      deletedRefs.push(args[2]);
+    }
+    return { stdout: '' };
+  };
+  const eng = new ShadowSnapshotEngine({ exec, maxSnapshots: 2 });
+  eng.snapshots.push(
+    { id: '1', sessionId: 's1', ref: 'refs/dsh-time-machine/s1/1', seq: 1 },
+    { id: '2', sessionId: 's1', ref: 'refs/dsh-time-machine/s1/2', seq: 2 },
+    { id: '3', sessionId: 's1', ref: 'refs/dsh-time-machine/s1/3', seq: 3 }
+  );
+  await eng._trimFor('s1');
+  assert.equal(eng.snapshots.length, 2);
+  assert.ok(deletedRefs.includes('refs/dsh-time-machine/s1/1'), 'oldest ref must be deleted from git');
+});
+
+test('pruneSnapshots with keep=0 removes all session snapshots', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  const exec = async () => ({ stdout: '' });
+  const eng = new ShadowSnapshotEngine({ exec });
+  eng.snapshots.push(
+    { id: 'a', sessionId: 'sess', ref: 'refs/dsh-time-machine/sess/a', createdAt: 100, seq: 1 },
+    { id: 'b', sessionId: 'sess', ref: 'refs/dsh-time-machine/sess/b', createdAt: 200, seq: 2 }
+  );
+  const out = await eng.pruneSnapshots('sess', 0);
+  assert.equal(out.removed.length, 2);
+  assert.equal(eng.listSnapshots('sess').length, 0);
+});
+
+test('host listens to native session/event bus and handles errors', async () => {
+  const text = read('lib/index.js');
+  assert.ok(text.includes("ctx.on('session/event'"), 'must listen to native session/event');
+  assert.ok(text.includes('auto:error:'), 'must support error checkpoint for autoHealPrompt');
+  assert.ok(text.includes('readJsonBody') && text.includes('1024 * 1024'), 'must protect against DoS payload');
+});
+
+test('client enforces writable only on ready status and provides zh locale', () => {
+  const text = read('lib/client.js');
+  assert.ok(text.includes("const writable = settingsStatus === 'ready';"), 'writable must be strictly ready');
+  assert.ok(text.includes('时光机'), 'must provide Chinese localization');
+});

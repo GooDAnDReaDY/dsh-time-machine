@@ -60,38 +60,41 @@ graph LR
 
 ---
 
-## ✨ Key Capabilities & Studio Features
+## 🌟 Key Capabilities
 
-### 1. 🛡️ Non-Intrusive Shadow Git Snapshots (`lib/snapshot.js`)
-* Captures complete working tree state, staged files, and untracked assets using shadow git refs;
-* Zero pollution of user git commit history, tags, or active branches;
-* Retains a rolling history of the last $N$ checkpoints with human-readable labels and timestamps.
+### 1. 🛡️ Lightweight Shadow Git Snapshots
+* Captures the full working tree, staged changes, and untracked files using isolated Git shadow tree references;
+* Zero interference with user commit history, current active branch, or repository staging area;
+* Maintains a rolling history of the most recent checkpoints with clear timestamps, session scoping, and labels.
 
 ### 2. ⏪ Instant Safe Rollback (`time_machine_checkpoint_rollback`)
 * Restores the entire workspace or specific files to any previous checkpoint in milliseconds;
+* Uses non-destructive checkout-index and clean without moving `HEAD` or rewriting branch history;
 * Can be triggered programmatically by the agent or interactively by the user in the UI.
 
 ### 3. 🔍 Visual Snapshot Diff Inspector (`time_machine_diff`)
 * Computes file-by-file visual diffs comparing current workspace state against any checkpoint;
-* Highlights added, deleted, and modified lines with clean line numbers.
+* Highlights added, deleted, and modified lines with clean line numbers and statistics.
 
-### 4. 🕒 Interactive Sidebar Timeline (`lib/client.js`)
-* Seamlessly integrates into DSH Web UI sidebar;
-* Displays a chronological timeline of all session checkpoints with file change counters and 1-click "Restore Checkpoint" and "Inspect Diff" buttons.
+### 4. 🕒 Interactive Sidebar & Settings Timeline (`lib/client.js`)
+* Seamlessly integrates into DSH Web UI sidebar and settings tab;
+* Displays a chronological timeline of session checkpoints with 1-click "Rollback", "Diff", and "Delete" buttons.
 
 ### 5. 🩹 Auto-Heal on Command Failure
-* Automatically prompts the user/agent with a 1-click restore proposal when a destructive command exits with an error.
+* Automatically records checkpoints when a tool or command fails, preserving recovery options.
 
 ---
 
-## 🛠️ Agent Tools Reference (4 Tools)
+## 🛠️ Agent Tools Reference (6 Tools)
 
 | Tool Name | Parameters | Description |
 |---|---|---|
-| `time_machine_checkpoint_create` | `label?: string` | Creates a shadow git workspace checkpoint before risky edits or operations |
-| `time_machine_checkpoint_list` | *(none)* | Lists all recent workspace checkpoints newest first |
-| `time_machine_checkpoint_rollback` | `id: string` | Reverts the entire workspace back to the specified checkpoint state |
-| `time_machine_diff` | `id?: string` | Returns unified file diff between current workspace and target checkpoint |
+| `time_machine_checkpoint_create` | `label?: string, sessionId?: string` | Creates a shadow git workspace checkpoint before risky edits or operations |
+| `time_machine_checkpoint_list` | `sessionId?: string` | Lists all recent workspace checkpoints newest first |
+| `time_machine_checkpoint_rollback` | `id: string, confirm: boolean` | Safely reverts workspace files back to specified checkpoint without altering branch HEAD |
+| `time_machine_diff` | `from: string, to?: string` | Returns unified file diff between current workspace and target checkpoint |
+| `time_machine_checkpoint_delete` | `id: string, confirm: boolean` | Permanently deletes a single checkpoint and purges its git reference |
+| `time_machine_checkpoint_prune` | `sessionId?: string, keep?: number` | Prunes session checkpoints, keeping only the newest N checkpoints |
 
 ---
 
@@ -111,6 +114,20 @@ dsh-time-machine:
   maxSnapshots: 20             # Maximum rolling checkpoints retained in memory
   autoHealPrompt: true         # Prompt for rollback when a command fails
 ```
+
+---
+
+## 📋 Release Notes
+
+### v0.1.7 — Critical Safety, Staging Isolation & Native Event Bus
+* **Changed in v0.1.7**: Safe workspace rollback via `read-tree` + `checkout-index` + `clean -fd`. Rolling back to a checkpoint never modifies branch `HEAD` or severs git commit history.
+* **Changed in v0.1.7**: User staging area protection. Checkpoints now isolate git index creation through `GIT_INDEX_FILE`, preventing disruption of pre-staged files in `.git/index`.
+* **Changed in v0.1.7**: Native DSH session event integration. Subscribed to `session/event` bus for automated checkpoints on `turn/start`, `approval/asked`, `turn/end`, and command errors.
+* **Changed in v0.1.7**: Automatic Git ref cleanup on snapshot eviction to eliminate disk ref leaks.
+* **Changed in v0.1.7**: Direct working directory diff computation when comparing checkpoints with uncommitted changes.
+* **Changed in v0.1.7**: Strict compliance with DSH Plugin Authoring guidelines: form fields are enabled only when settings status is `ready`.
+* **Added in v0.1.7**: WebServer request body size limit (1MB max payload) for DoS protection.
+* **Added in v0.1.7**: Complete Chinese localization (`zh`) in frontend interface.
 
 ---
 
