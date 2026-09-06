@@ -119,6 +119,11 @@ dsh-time-machine:
 
 ## 📋 Release Notes
 
+### v0.1.9 — Event Bus Harmonization & Dependency Cleanup
+* **Changed in v0.1.9**: Harmonized event bus subscriptions to prevent duplicate checkpoints. Native DSH `session/event` bus takes precedence, with legacy `ctx.events` used strictly as a fallback when `ctx.on` is unavailable.
+* **Changed in v0.1.9**: Removed unused `@deepseek-ai/dsh-credentials` from `peerDependencies`.
+* **Added in v0.1.9**: Standardized project design contract in `docs/design/DESIGN.md`.
+
 ### v0.1.7 — Critical Safety, Staging Isolation & Native Event Bus
 * **Changed in v0.1.7**: Safe workspace rollback via `read-tree` + `checkout-index` + `clean -fd`. Rolling back to a checkpoint never modifies branch `HEAD` or severs git commit history.
 * **Changed in v0.1.7**: User staging area protection. Checkpoints now isolate git index creation through `GIT_INDEX_FILE`, preventing disruption of pre-staged files in `.git/index`.
