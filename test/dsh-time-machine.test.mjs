@@ -327,3 +327,15 @@ test('client enforces writable only on ready status and provides zh locale', () 
   assert.ok(text.includes("const writable = settingsStatus === 'ready';"), 'writable must be strictly ready');
   assert.ok(text.includes('时光机'), 'must provide Chinese localization');
 });
+test('peerDependencies does not contain dead dsh-credentials', () => {
+  const currentPkg = JSON.parse(read('package.json'));
+  assert.equal(Boolean(currentPkg.peerDependencies && '@deepseek-ai/dsh-credentials' in currentPkg.peerDependencies), false, 'dead credentials peer dependency must be removed');
+});
+
+test('event bus subscription prevents double-firing by prioritizing native session/event', () => {
+  const text = read('lib/index.js');
+  assert.ok(text.includes("const hasNativeEvents = typeof ctx.on === 'function';"), 'checks native event support');
+  assert.ok(text.includes('if (hasNativeEvents)'), 'branches on native support');
+  assert.ok(text.includes('} else {'), 'legacy events fallback only when native missing');
+  assert.ok(text.includes("ctx.events.on('turn/start'"), 'preserves fallback turn/start');
+});

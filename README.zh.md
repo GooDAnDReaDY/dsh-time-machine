@@ -94,6 +94,11 @@ dsh-time-machine:
 
 ## 📋 版本更新记录 (Release Notes)
 
+### v0.1.9 — 事件总线统一与依赖清理
+* **Changed in v0.1.9**: 统一事件总线监听逻辑，杜绝自动快照重复触发。优先使用原生 DSH `session/event` 总线，仅在缺失 `ctx.on` 时启用 legacy `ctx.events` 回退。
+* **Changed in v0.1.9**: 从 `peerDependencies` 中移除未使用的 `@deepseek-ai/dsh-credentials`。
+* **Added in v0.1.9**: 新增项目设计规范文档 `docs/design/DESIGN.md`。
+
 ### v0.1.7 — 分支历史安全、暂存区隔离与 DSH 原生事件总线
 * **Changed in v0.1.7**: 安全工作区回滚。改用 `read-tree` + `checkout-index` + `clean -fd`，彻底杜绝回滚时误将分支 `HEAD` 覆盖为孤立提交的严重缺陷。
 * **Changed in v0.1.7**: 保护用户 Git 暂存区。快照操作通过独立的 `GIT_INDEX_FILE` 执行，不会覆盖 `.git/index` 中已暂存的文件。
