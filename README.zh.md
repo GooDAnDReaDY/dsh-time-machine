@@ -94,6 +94,16 @@ dsh-time-machine:
 
 ## 📋 版本更新记录 (Release Notes)
 
+### v0.1.10 — 稳定性、动态工作目录、统一 Diff 与架构优化
+* **Added in v0.1.10**: 动态工作区感知（`cwd`）：时光机工具与 REST 接口自动关联当前会话目录或支持显式工作区路径。
+* **Added in v0.1.10**: 统一补丁支持（`format: "patch" | "stat"`），带输出截断保护（最大 256KB）。
+* **Added in v0.1.10**: Git 变动操作异步排队队列，彻底解决高并发下的 `index.lock` 竞争冲突。
+* **Added in v0.1.10**: 采用 `git for-each-ref` 批量查询引用，消除 $O(N)$ 次 `git log` 进程生成，极大加速快照加载。
+* **Added in v0.1.10**: 空提交去重：若工作树无变化，自动跳过重复快照创建。
+* **Added in v0.1.10**: 启动时自动清理遗留的 `tm_index_*` 临时暂存索引文件。
+* **Changed in v0.1.10**: 精简设置卡片界面，引导在侧边栏时光机标签页查看时间线。
+* **Changed in v0.1.10**: 完善错误告警日志（`console.warn`），替换静默吞并异常。
+
 ### v0.1.9 — 事件总线统一与依赖清理
 * **Changed in v0.1.9**: 统一事件总线监听逻辑，杜绝自动快照重复触发。优先使用原生 DSH `session/event` 总线，仅在缺失 `ctx.on` 时启用 legacy `ctx.events` 回退。
 * **Changed in v0.1.9**: 从 `peerDependencies` 中移除未使用的 `@deepseek-ai/dsh-credentials`。

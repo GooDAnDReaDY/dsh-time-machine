@@ -119,6 +119,16 @@ dsh-time-machine:
 
 ## 📋 Release Notes
 
+### v0.1.10 — Stability, Dynamic CWD, Unified Diff & Architecture Polish
+* **Added in v0.1.10**: Dynamic / session-aware `cwd` resolution: TimeMachine tools and REST endpoints automatically locate the active session workspace or accept explicit target directory.
+* **Added in v0.1.10**: Unified diff support (`format: "patch" | "stat"`) with size limits (up to 256KB) and clean truncation warnings.
+* **Added in v0.1.10**: Async execution queue on Git mutation engine to completely eliminate lockfile collisions under concurrent agent operations.
+* **Added in v0.1.10**: Single-batch Git ref querying using `git for-each-ref` replacing $O(N)$ sequential `git log` processes for instant snapshot listings.
+* **Added in v0.1.10**: Redundant commit deduplication: auto-snapshots are safely skipped if the working tree has not changed.
+* **Added in v0.1.10**: Startup cleanup of temporary `tm_index_*` staging files.
+* **Changed in v0.1.10**: Settings UI card streamlined, directing snapshot inspection to the dedicated Time Machine sidebar tab.
+* **Changed in v0.1.10**: Comprehensive error logging replacing silent exceptions.
+
 ### v0.1.9 — Event Bus Harmonization & Dependency Cleanup
 * **Changed in v0.1.9**: Harmonized event bus subscriptions to prevent duplicate checkpoints. Native DSH `session/event` bus takes precedence, with legacy `ctx.events` used strictly as a fallback when `ctx.on` is unavailable.
 * **Changed in v0.1.9**: Removed unused `@deepseek-ai/dsh-credentials` from `peerDependencies`.

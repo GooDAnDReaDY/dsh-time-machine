@@ -339,3 +339,94 @@ test('event bus subscription prevents double-firing by prioritizing native sessi
   assert.ok(text.includes('} else {'), 'legacy events fallback only when native missing');
   assert.ok(text.includes("ctx.events.on('turn/start'"), 'preserves fallback turn/start');
 });
+test("unified diff supports patch and stat formats with length limit", async () => {
+  const { ShadowSnapshotEngine } = await import("../lib/snapshot.js");
+  const exec = async (cmd, args) => {
+    if (args[0] === "rev-parse") return { stdout: "true\n" };
+    if (args[0] === "diff") {
+      if (args.includes("--stat")) return { stdout: " file.txt | 2 +-\n 1 file changed" };
+      return { stdout: "--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new" };
+    }
+    return { stdout: "" };
+  };
+  const eng = new ShadowSnapshotEngine({ exec });
+  eng.snapshots.push({ id: "s1", commit: "commit1", ref: "refs/dsh-time-machine/s1" });
+
+  const patchRes = await eng.diff("s1", undefined, { format: "patch" });
+  assert.equal(patchRes.format, "patch");
+  assert.ok(patchRes.diff.includes("--- a/file.txt"));
+
+  const statRes = await eng.diff("s1", undefined, { format: "stat" });
+  assert.equal(statRes.format, "stat");
+  assert.ok(statRes.diff.includes("1 file changed"));
+});
+
+test("snapshot creation deduplicates unchanged trees", async () => {
+  const { ShadowSnapshotEngine } = await import("../lib/snapshot.js");
+  let commitCount = 0;
+  const exec = async (cmd, args) => {
+    if (args[0] === "rev-parse") {
+      if (args[1] === "--git-dir") return { stdout: ".git\n" };
+      return { stdout: "true\n" };
+    }
+    if (args[0] === "write-tree") return { stdout: "same-tree-hash\n" };
+    if (args[0] === "commit-tree") {
+      commitCount++;
+      return { stdout: "commithash\n" };
+    }
+    return { stdout: "" };
+  };
+  const eng = new ShadowSnapshotEngine({ exec });
+  const s1 = await eng.createSnapshot("first", { sessionId: "sess-1" });
+  assert.equal(commitCount, 1);
+  assert.equal(s1.treeHash, "same-tree-hash");
+
+  // Second snapshot with identical tree
+  const s2 = await eng.createSnapshot("second", { sessionId: "sess-1" });
+  assert.equal(commitCount, 1, "commit-tree must not be called when treeHash is identical");
+  assert.equal(s2.id, s1.id);
+});
+
+test("dynamic cwd resolution is supported in snapshot engine and tools", async () => {
+  const { ShadowSnapshotEngine } = await import("../lib/snapshot.js");
+  let usedCwd = null;
+  const exec = async (cmd, args, opts) => {
+    if (args[0] === "rev-parse") return { stdout: "true\n" };
+    if (args[0] === "diff") {
+      usedCwd = opts?.cwd;
+      return { stdout: "diff output" };
+    }
+    return { stdout: "" };
+  };
+  const eng = new ShadowSnapshotEngine({ exec });
+  eng.snapshots.push({ id: "s1", commit: "c1" });
+  await eng.diff("s1", undefined, { cwd: "/custom/workspace" });
+  assert.equal(usedCwd, "/custom/workspace");
+});
+
+test("loadFromRefs uses single-batch git for-each-ref", async () => {
+  const { ShadowSnapshotEngine } = await import("../lib/snapshot.js");
+  let forEachRefCalled = false;
+  let logCalled = false;
+  const exec = async (cmd, args) => {
+    if (args[0] === "rev-parse") return { stdout: "true\n" };
+    if (args[0] === "for-each-ref") {
+      forEachRefCalled = true;
+      const ref1 = "refs/dsh-time-machine/s1/snap1\x00commit1\x001700000000 +0000\x00label1\n";
+      const ref2 = "refs/dsh-time-machine/s1/snap2\x00commit2\x001700000100 +0000\x00label2\n";
+      return { stdout: ref1 + ref2 };
+    }
+    if (args[0] === "log") {
+      logCalled = true;
+      return { stdout: "" };
+    }
+    return { stdout: "" };
+  };
+  const eng = new ShadowSnapshotEngine({ exec });
+  await eng.loadFromRefs();
+  assert.ok(forEachRefCalled, "must call for-each-ref");
+  assert.equal(logCalled, false, "must NOT call git log per ref");
+  assert.equal(eng.snapshots.length, 2);
+  assert.equal(eng.snapshots[0].id, "snap1");
+  assert.equal(eng.snapshots[1].id, "snap2");
+});
