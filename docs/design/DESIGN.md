@@ -6,8 +6,8 @@
 - Статус: Production.
 
 ## User Surfaces
-- Web/UI: Вкладка "Time Machine" в BetterSidebar (`betterSidebar.registerTab`), карточка настроек `settings.plugin.item` в настройках плагинов DSH Web UI.
-- DSH UI / settings / slots: слот `settings.plugin.item` (NS: `@goodandready/dsh-time-machine`), сервис `betterSidebar` (вкладка `time-machine`).
+- Web/UI: Вкладка "Time Machine" в нативном DSH Right Sidebar (`sidebarRightTabs.register` + слот `sidebar.right.pane.tab`), вкладка в legacy BetterSidebar (`betterSidebar.registerTab`), карточка настроек `settings.plugin.item` в настройках плагинов DSH Web UI.
+- DSH UI / settings / slots: нативный Sidebar (`sidebarRightTabs`, слот `sidebar.right.pane.tab`, key: `@goodandready/dsh-time-machine`), слот `settings.plugin.item` (NS: `@goodandready/dsh-time-machine`), legacy сервис `betterSidebar` (вкладка `time-machine`).
 - API: HTTP WebServer endpoints (`/dsh-time-machine/snapshots`, `/dsh-time-machine/diff`, `/dsh-time-machine/create`, `/dsh-time-machine/delete`, `/dsh-time-machine/rollback`, `/dsh-time-machine/prune`).
 - CLI: Агентские инструменты DSH:
   - `time_machine_checkpoint_create`
@@ -71,4 +71,4 @@
 ## Locked Design Decisions
 - 2026-09-02 — Откат выполняется через `read-tree` + `checkout-index -a -f` + `clean -fd` для абсолютной защиты истории коммитов и указателя `HEAD`.
 - 2026-09-02 — Настройки регистрируются в слоте `settings.plugin.item` ядра DSH, форма активна строго в статусе `ready`.
-- 2026-09-06 — Единая шина событий: нативная `session/event` шина имеет приоритет; legacy `ctx.events` подключается только как fallback при отсутствии `ctx.on` во избежание двойного срабатывания авто-снапшотов.
+- 2026-09-06 — Единая шина событий: нативная `session/event` шина имеет приоритет; legacy `ctx.events` подключается только как fallback при отсутствии `ctx.on` во избежание двойного срабатывания авто-снапшотов.- 2026-09-09 — Двухканальная адаптация сайдбаров: поддержка нативного DSH Right Sidebar (`sidebarRightTabs.register` + `sidebar.right.pane.tab`) для DSH >= 0.1.5-alpha.1 с сохранением обратной совместимости с `betterSidebar.registerTab` для устаревших сборок; отсутствие обеих поверхностей безопасно откатывается на карточку настроек.

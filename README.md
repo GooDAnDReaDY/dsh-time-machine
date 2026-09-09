@@ -119,6 +119,11 @@ dsh-time-machine:
 
 ## 📋 Release Notes
 
+### v0.1.11 — Dual Sidebar Support: Native DSH Right Sidebar & BetterSidebar
+* **Added in v0.1.11**: Support for native DSH Right Sidebar (`sidebarRightTabs` + `sidebar.right.pane.tab`) introduced in DSH 0.1.5-alpha.1, including guide page registration with custom icon.
+* **Preserved in v0.1.11**: Legacy `betterSidebar` integration retained with deterministic surface-scoped registrations, preventing ID collisions or duplicate mounts when both surfaces exist.
+* **Added in v0.1.11**: Graceful degradation to plugin settings card when neither sidebar surface is available.
+
 ### v0.1.10 — Stability, Dynamic CWD, Unified Diff & Architecture Polish
 * **Added in v0.1.10**: Dynamic / session-aware `cwd` resolution: TimeMachine tools and REST endpoints automatically locate the active session workspace or accept explicit target directory.
 * **Added in v0.1.10**: Unified diff support (`format: "patch" | "stat"`) with size limits (up to 256KB) and clean truncation warnings.

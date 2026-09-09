@@ -94,6 +94,11 @@ dsh-time-machine:
 
 ## 📋 版本更新记录 (Release Notes)
 
+### v0.1.11 — 双侧边栏支持：原生 DSH 右侧边栏与 BetterSidebar
+* **Added in v0.1.11**: 原生支持 DSH 0.1.5-alpha.1 引入的右侧边栏（`sidebarRightTabs` 注册与 `sidebar.right.pane.tab` 插槽），包含专属引导页卡片与图标。
+* **Preserved in v0.1.11**: 保持对旧版 `betterSidebar` 的完全向后兼容；两种表面同时启用时互不干扰，杜绝重复挂载或 ID 冲突。
+* **Added in v0.1.11**: 在两种侧边栏均缺失的环境下，安全降级至插件设置卡片。
+
 ### v0.1.10 — 稳定性、动态工作目录、统一 Diff 与架构优化
 * **Added in v0.1.10**: 动态工作区感知（`cwd`）：时光机工具与 REST 接口自动关联当前会话目录或支持显式工作区路径。
 * **Added in v0.1.10**: 统一补丁支持（`format: "patch" | "stat"`），带输出截断保护（最大 256KB）。

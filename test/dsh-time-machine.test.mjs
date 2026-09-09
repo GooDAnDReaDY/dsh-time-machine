@@ -430,3 +430,136 @@ test("loadFromRefs uses single-batch git for-each-ref", async () => {
   assert.equal(eng.snapshots[0].id, "snap1");
   assert.equal(eng.snapshots[1].id, "snap2");
 });
+
+test("client registers native DSH Right Sidebar tabs and slots", () => {
+  const text = read("lib/client.js");
+  assert.ok(text.includes("ctx.inject(['sidebarRightTabs']"), "must inject sidebarRightTabs");
+  assert.ok(text.includes("kind: 'time-machine'"), "must define kind time-machine");
+  assert.ok(text.includes("sidebar.right.pane.tab"), "must register slot sidebar.right.pane.tab");
+  assert.ok(text.includes("TimeMachineTab"), "must mount TimeMachineTab");
+});
+
+test("client sidebar matrix handles all four layout combinations safely", () => {
+  const clientText = read("lib/client.js");
+
+  // Helper mock runtime for client.js evaluation
+  function evaluateClient(mockServices = {}) {
+    const registeredSlots = [];
+    const registeredTabs = [];
+    const nativeTabs = [];
+
+    const mockCtx = {
+      locale: {
+        register: () => {},
+        bind: () => (k) => k,
+        getSnapshot: () => ({ active: "en" }),
+        subscribe: () => () => {},
+      },
+      slots: {
+        inject: (name, cb) => {
+          cb();
+          return () => {};
+        },
+        register: (desc, comp) => {
+          registeredSlots.push({ desc, comp });
+        },
+      },
+      inject: (deps, cb) => {
+        const subCtx = { ...mockCtx };
+        for (const dep of deps) {
+          if (mockServices[dep]) {
+            subCtx[dep] = mockServices[dep];
+          } else {
+            return; // dependency not declared in this host build
+          }
+        }
+        cb(subCtx);
+      },
+      ...mockServices,
+    };
+
+    // Load factory
+    let factoryFn = null;
+    const mockWindow = {
+      __ModuleLoader__: {
+        load: ({ factory }) => {
+          factoryFn = factory;
+        },
+      },
+    };
+
+    const mockRequire = (mod) => {
+      if (mod === "react") return {
+        createElement: (type, props, ...children) => ({ type, props, children }),
+        useState: (init) => [init, () => {}],
+        useEffect: () => {},
+        useCallback: (fn) => fn,
+        useMemo: (fn) => fn(),
+        useRef: (init) => ({ current: init }),
+        useSyncExternalStore: (sub, snap) => snap(),
+      };
+      if (mod === "@deepseek-ai/dsh-client-ui-primitives") return {};
+      throw new Error("Cannot require " + mod);
+    };
+
+    const fn = new Function("window", "document", clientText);
+    const mockDoc = {
+      head: { appendChild: () => {} },
+      querySelector: () => null,
+      createElement: () => ({ setAttribute: () => {}, textContent: "" }),
+    };
+    fn(mockWindow, mockDoc);
+
+    const mod = factoryFn(mockRequire);
+    mod.apply(mockCtx);
+
+    return {
+      registeredSlots,
+      hasSettings: registeredSlots.some(s => s.desc.name === "settings.plugin.item"),
+      hasNativePane: registeredSlots.some(s => s.desc.name === "sidebar.right.pane.tab"),
+    };
+  }
+
+  // Layout 1: Neither sidebar available
+  const l1 = evaluateClient({});
+  assert.ok(l1.hasSettings, "Layout 1 (neither): settings must register");
+  assert.equal(l1.hasNativePane, false, "Layout 1 (neither): no native pane");
+
+  // Layout 2: Legacy betterSidebar only
+  let betterRegistered = false;
+  const l2 = evaluateClient({
+    betterSidebar: {
+      registerTab: () => { betterRegistered = true; },
+    },
+  });
+  assert.ok(l2.hasSettings, "Layout 2 (legacy only): settings must register");
+  assert.ok(betterRegistered, "Layout 2 (legacy only): betterSidebar tab must register");
+  assert.equal(l2.hasNativePane, false, "Layout 2 (legacy only): no native pane");
+
+  // Layout 3: Native Sidebar only
+  let nativeRegistered = false;
+  const l3 = evaluateClient({
+    sidebarRightTabs: {
+      register: () => { nativeRegistered = true; return () => {}; },
+    },
+  });
+  assert.ok(l3.hasSettings, "Layout 3 (native only): settings must register");
+  assert.ok(nativeRegistered, "Layout 3 (native only): native tab must register");
+  assert.ok(l3.hasNativePane, "Layout 3 (native only): native pane slot must register");
+
+  // Layout 4: Both sidebars available
+  let bothNative = false;
+  let bothBetter = false;
+  const l4 = evaluateClient({
+    sidebarRightTabs: {
+      register: () => { bothNative = true; return () => {}; },
+    },
+    betterSidebar: {
+      registerTab: () => { bothBetter = true; },
+    },
+  });
+  assert.ok(l4.hasSettings, "Layout 4 (both): settings must register");
+  assert.ok(bothNative, "Layout 4 (both): native tab registered");
+  assert.ok(bothBetter, "Layout 4 (both): betterSidebar tab registered");
+  assert.ok(l4.hasNativePane, "Layout 4 (both): native pane registered");
+});
