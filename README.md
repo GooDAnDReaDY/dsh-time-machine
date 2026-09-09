@@ -119,6 +119,9 @@ dsh-time-machine:
 
 ## 📋 Release Notes
 
+### v0.1.12 — Fix Oversized Clock Icon in Native Sidebar Guide
+* **Fixed in v0.1.12**: Replaced function-based icon with dedicated `TimeMachineIcon` component supporting both props object `{ size, className }` and numeric argument, with explicit inline sizing (`width`, `height`, `display: inline-block`, `flex: none`) to prevent overflow in the Right Sidebar Guide card.
+
 ### v0.1.11 — Dual Sidebar Support: Native DSH Right Sidebar & BetterSidebar
 * **Added in v0.1.11**: Support for native DSH Right Sidebar (`sidebarRightTabs` + `sidebar.right.pane.tab`) introduced in DSH 0.1.5-alpha.1, including guide page registration with custom icon.
 * **Preserved in v0.1.11**: Legacy `betterSidebar` integration retained with deterministic surface-scoped registrations, preventing ID collisions or duplicate mounts when both surfaces exist.

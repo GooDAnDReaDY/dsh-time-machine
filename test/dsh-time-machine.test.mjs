@@ -563,3 +563,11 @@ test("client sidebar matrix handles all four layout combinations safely", () => 
   assert.ok(bothBetter, "Layout 4 (both): betterSidebar tab registered");
   assert.ok(l4.hasNativePane, "Layout 4 (both): native pane registered");
 });
+
+test("TimeMachineIcon handles both props object and numeric argument with explicit bounding box", () => {
+  const text = read("lib/client.js");
+  assert.ok(text.includes("function TimeMachineIcon"), "must declare TimeMachineIcon");
+  assert.ok(text.includes("props && props.size"), "must extract size from props");
+  assert.ok(text.includes("display: \"inline-block\""), "must constrain layout display");
+  assert.ok(text.includes("flex: \"none\""), "must prevent flex stretching");
+});

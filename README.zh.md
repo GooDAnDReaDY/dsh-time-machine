@@ -94,6 +94,9 @@ dsh-time-machine:
 
 ## 📋 版本更新记录 (Release Notes)
 
+### v0.1.12 — 修复原生侧边栏引导页中时钟图标过大的问题
+* **Fixed in v0.1.12**: 将图标函数重构为标准 React 组件 `TimeMachineIcon`，兼容 `{ size, className }` 属性对象与数字传参，增加内联样式限制（`width`, `height`, `flex: none`），彻底解决右侧边栏 Guide 卡片中图标溢出的缺陷。
+
 ### v0.1.11 — 双侧边栏支持：原生 DSH 右侧边栏与 BetterSidebar
 * **Added in v0.1.11**: 原生支持 DSH 0.1.5-alpha.1 引入的右侧边栏（`sidebarRightTabs` 注册与 `sidebar.right.pane.tab` 插槽），包含专属引导页卡片与图标。
 * **Preserved in v0.1.11**: 保持对旧版 `betterSidebar` 的完全向后兼容；两种表面同时启用时互不干扰，杜绝重复挂载或 ID 冲突。
