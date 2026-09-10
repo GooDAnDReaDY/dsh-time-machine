@@ -94,6 +94,11 @@ dsh-time-machine:
 
 ## 📋 版本更新记录 (Release Notes)
 
+### v0.1.14 — 界面风格对齐 dsh-clinebot、CSRF 防护与稳定性提升
+* **Added in v0.1.14**: 界面全面对齐 `dsh-clinebot` 设计令牌规范，通过 `--dsw-alias-*` 变量原生支持深浅色主题，提供主要操作按钮与危险操作按钮，在设置卡片与检查点列表引入状态徽章，升级磨砂半透明 Diff 弹窗。
+* **Security in v0.1.14**: 对所有变更型 HTTP 路由（`create`、`delete`、`rollback`、`prune`）实施 CSRF 防护（`isTrustedSettingsRequest`）。
+* **Fixed in v0.1.14**: 在插件启动生命周期中自动执行孤儿 Git 索引清理（`cleanupOrphanedIndices`）；在 legacy 事件总线回退中补充错误快照生成支持（`autoHealPrompt`）。
+
 ### v0.1.13 — 移除 settings.section 回退与安全访问 settingsScope
 * **Changed in v0.1.13**: 移除 `settings.section` 顶级侧边栏设置注册回退，设置严格归属于 `settings.plugin.item` 折叠卡片，避免挤占全局平面设置列表。
 * **Fixed in v0.1.13**: 使用安全 `ctx.get('settingsScope')` 访问设置作用域服务，避免 Cordis proxy 属性读取返回 `undefined`。

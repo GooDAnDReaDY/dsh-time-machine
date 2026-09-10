@@ -317,9 +317,11 @@ test('pruneSnapshots with keep=0 removes all session snapshots', async () => {
 
 test('host listens to native session/event bus and handles errors', async () => {
   const text = read('lib/index.js');
+  const httpText = read('lib/http.js');
   assert.ok(text.includes("ctx.on('session/event'"), 'must listen to native session/event');
   assert.ok(text.includes('auto:error:'), 'must support error checkpoint for autoHealPrompt');
-  assert.ok(text.includes('readJsonBody') && text.includes('1024 * 1024'), 'must protect against DoS payload');
+  assert.ok(httpText.includes('readBody') && httpText.includes('256 * 1024'), 'must protect against DoS payload');
+  assert.ok(text.includes('isTrustedSettingsRequest'), 'must enforce CSRF protection on mutating routes');
 });
 
 test('client enforces writable only on ready status and provides zh locale', () => {
@@ -577,4 +579,47 @@ test('client settings does not register top-level settings.section and resolves 
   assert.ok(!clientText.includes("name: 'settings.section'"), 'must not register settings.section');
   assert.ok(!clientText.includes('name: "settings.section"'), 'must not register settings.section');
   assert.ok(clientText.includes("ctx.get('settingsScope')"), 'must use ctx.get for settingsScope resolution');
+});
+
+test('http helper enforces payload limits, CSRF check and writeJson headers', async () => {
+  const { isTrustedSettingsRequest, readBody, writeJson } = await import('../lib/http.js');
+  
+  // CSRF test
+  assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'cross-site' } }), false);
+  assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'same-origin' } }), true);
+  assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'none' } }), true);
+  assert.equal(isTrustedSettingsRequest({ headers: {} }), true);
+
+  // writeJson test
+  let writtenCode = 0;
+  let writtenHeaders = {};
+  let writtenBody = '';
+  const mockRes = {
+    writeHead: (code, headers) => { writtenCode = code; writtenHeaders = headers; },
+    end: (str) => { writtenBody = str; },
+  };
+  writeJson(mockRes, 200, { ok: true });
+  assert.equal(writtenCode, 200);
+  assert.equal(writtenHeaders['Cache-Control'], 'no-store');
+  assert.equal(JSON.parse(writtenBody).ok, true);
+});
+
+test('ShadowSnapshotEngine cleanupOrphanedIndices handles gitDir safely', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  const eng = new ShadowSnapshotEngine({
+    exec: async (cmd, args) => {
+      if (args[0] === 'rev-parse') return { stdout: '/nonexistent/dir' };
+      return { stdout: '' };
+    }
+  });
+  // Must not throw even if git dir cannot be read
+  await eng.cleanupOrphanedIndices('/some/dir');
+});
+
+test('client uses dsh-clinebot design token styles with primary and danger buttons', () => {
+  const clientText = read('lib/client.js');
+  assert.ok(clientText.includes('.tm-btn-primary'), 'must include primary button style');
+  assert.ok(clientText.includes('.tm-btn-danger'), 'must include danger button style');
+  assert.ok(clientText.includes('.tm-badge-ok'), 'must include badge-ok style');
+  assert.ok(clientText.includes('dsh-time-machine-full-css'), 'must include standard css id');
 });

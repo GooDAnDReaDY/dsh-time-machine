@@ -120,6 +120,7 @@ dsh-time-machine:
 ## 📋 Release Notes
 
 ### v0.1.12 — Fix Oversized Clock Icon in Native Sidebar Guide
+* **v0.1.14**: Complete visual alignment with the `dsh-clinebot` design token standard: full light/dark theme support using `--dsw-alias-*` tokens, primary and danger action buttons, status badges for settings card and timeline, dark modal unified diff viewer with backdrop blur. Added CSRF protection (`isTrustedSettingsRequest`) for all mutating HTTP routes, hooked orphaned Git index cleanup (`cleanupOrphanedIndices`) into plugin initialization, and added `autoHealPrompt` error checkpoint support to the legacy event bus fallback.
 * **v0.1.13**: Deprecated and removed top-level `settings.section` fallback to prevent occupying the flat global settings sidebar in DeepSeek Harness Web UI; plugin settings strictly reside in collapsible `settings.plugin.item` card. Harmonized settings scope resolution using safe `ctx.get('settingsScope')` proxy access.
 * **Fixed in v0.1.12**: Replaced function-based icon with dedicated `TimeMachineIcon` component supporting both props object `{ size, className }` and numeric argument, with explicit inline sizing (`width`, `height`, `display: inline-block`, `flex: none`) to prevent overflow in the Right Sidebar Guide card.
 

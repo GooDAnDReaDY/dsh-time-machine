@@ -119,6 +119,11 @@ dsh-time-machine:
 
 ## 📋 История версий (Release Notes)
 
+### v0.1.14 — Редизайн в стиле dsh-clinebot, CSRF-защита и повышение стабильности
+* **Added in v0.1.14**: Полное визуальное приведение интерфейса к эталонному стандарту дизайн-токенов `dsh-clinebot`: нативная поддержка темной/светлой темы через переменные `--dsw-alias-*`, акцентные (`.tm-btn-primary`) и деструктивные (`.tm-btn-danger`) кнопки, бейджи статуса в карточке настроек и таблице чекпоинтов, современное модальное окно просмотра diff с размытием фона.
+* **Security in v0.1.14**: Внедрена CSRF-защита мутирующих HTTP-маршрутов (`create`, `delete`, `rollback`, `prune`) через валидацию заголовка `Sec-Fetch-Site` (`isTrustedSettingsRequest`).
+* **Fixed in v0.1.14**: Автоматическая очистка сиротских индексов Git (`cleanupOrphanedIndices`) подключена к инициализации плагина; добавлено создание аварийных чекпоинтов при ошибках (`autoHealPrompt`) в шину legacy events fallback.
+
 ### v0.1.13 — Устранение fallback settings.section и безопасный доступ к settingsScope
 * **Changed in v0.1.13**: Удалена регистрация запасной строки верхнего уровня `settings.section` из бокового списка настроек DeepSeek Harness Web UI; настройки плагина строго регистрируются внутри сворачиваемой карточки `settings.plugin.item`.
 * **Fixed in v0.1.13**: Доступ к сервису настроек переведён на безопасный вызов `ctx.get('settingsScope')` для предотвращения чтения `undefined` через Cordis proxy.
