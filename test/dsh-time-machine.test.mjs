@@ -571,3 +571,10 @@ test("TimeMachineIcon handles both props object and numeric argument with explic
   assert.ok(text.includes("display: \"inline-block\""), "must constrain layout display");
   assert.ok(text.includes("flex: \"none\""), "must prevent flex stretching");
 });
+
+test('client settings does not register top-level settings.section and resolves settingsScope safely', () => {
+  const clientText = read('lib/client.js');
+  assert.ok(!clientText.includes("name: 'settings.section'"), 'must not register settings.section');
+  assert.ok(!clientText.includes('name: "settings.section"'), 'must not register settings.section');
+  assert.ok(clientText.includes("ctx.get('settingsScope')"), 'must use ctx.get for settingsScope resolution');
+});

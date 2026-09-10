@@ -120,6 +120,7 @@ dsh-time-machine:
 ## 📋 Release Notes
 
 ### v0.1.12 — Fix Oversized Clock Icon in Native Sidebar Guide
+* **v0.1.13**: Deprecated and removed top-level `settings.section` fallback to prevent occupying the flat global settings sidebar in DeepSeek Harness Web UI; plugin settings strictly reside in collapsible `settings.plugin.item` card. Harmonized settings scope resolution using safe `ctx.get('settingsScope')` proxy access.
 * **Fixed in v0.1.12**: Replaced function-based icon with dedicated `TimeMachineIcon` component supporting both props object `{ size, className }` and numeric argument, with explicit inline sizing (`width`, `height`, `display: inline-block`, `flex: none`) to prevent overflow in the Right Sidebar Guide card.
 
 ### v0.1.11 — Dual Sidebar Support: Native DSH Right Sidebar & BetterSidebar

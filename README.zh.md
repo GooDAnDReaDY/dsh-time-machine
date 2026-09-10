@@ -94,6 +94,10 @@ dsh-time-machine:
 
 ## 📋 版本更新记录 (Release Notes)
 
+### v0.1.13 — 移除 settings.section 回退与安全访问 settingsScope
+* **Changed in v0.1.13**: 移除 `settings.section` 顶级侧边栏设置注册回退，设置严格归属于 `settings.plugin.item` 折叠卡片，避免挤占全局平面设置列表。
+* **Fixed in v0.1.13**: 使用安全 `ctx.get('settingsScope')` 访问设置作用域服务，避免 Cordis proxy 属性读取返回 `undefined`。
+
 ### v0.1.12 — 修复原生侧边栏引导页中时钟图标过大的问题
 * **Fixed in v0.1.12**: 将图标函数重构为标准 React 组件 `TimeMachineIcon`，兼容 `{ size, className }` 属性对象与数字传参，增加内联样式限制（`width`, `height`, `flex: none`），彻底解决右侧边栏 Guide 卡片中图标溢出的缺陷。
 
