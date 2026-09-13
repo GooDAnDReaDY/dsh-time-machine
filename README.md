@@ -95,7 +95,14 @@ graph LR
 
 ---
 
-## 🛠️ Agent Tools Reference (6 Tools)
+
+### 4. Selective File Rollback & Staging Safety (v0.1.15)
+- **Single File Restore**: Restore individual files corrupted by an agent without losing progress in other files via `time_machine_file_rollback` or Diff Modal UI.
+- **Staging Safety Guard**: Preserves user uncommitted `git add` index (`stagedTreeHash`) across turns.
+- **Pre-Tool Auto-Checkpoints**: Captures checkpoints automatically prior to high-risk tools (`bash`, `execute_command`, `apply_patch`).
+- **Structured File Diff Navigation**: Monospace side-by-side file tree with line addition/deletion statistics.
+
+## 🛠️ Agent Tools Reference (7 Tools)
 
 | Tool Name | Parameters | Description |
 |---|---|---|

@@ -1,28 +1,38 @@
-# Техническое задание и план реализации: dsh-time-machine
+# Plan: Rich Rollback, Staging Safety, Visual Diff & Pre-Tool Checkpoints (#36, #35)
 
-## 1. Цели и назначение
-Создание плагина безопасности и версионирования для DeepSeek Harness, предотвращающего разрушительные последствия действий автономных агентов через механизм теневых контрольных точек и мгновенный откат.
+## Status
+- Branch: feat/rich-rollback-safety
+- Issues: #36 (feat), #35 (bug)
+- State: In-Progress
 
-## 2. Архитектура решения
-- **Модуль `ShadowSnapshotEngine`**: создает изолированные git-деревья без засорения основной ветки репозитория.
-- **Перехватчик событий DSH**: слушает хуки `turn/start`, `turn/end`, `approval/asked`.
-- **UI-компонент `TimelineViewer`**: отображает историю шагов и разницу (diff) прямо в окне сессии.
-
-## 3. Декомпозиция задач (Work Breakdown Structure)
-- [ ] **Этап 1: Ядро снапшотов (Backend Core)**
-  - [ ] 1.1 Реализация `ShadowSnapshotEngine` на базе временных git stash / shadow tree refs.
-  - [ ] 1.2 Создание функций `createSnapshot(label)`, `listSnapshots()`, `rollbackSnapshot(id)`.
-  - [ ] 1.3 Реализация безопасного вычисления diff между снимками.
-- [ ] **Этап 2: Инструменты агента (Agent Tools)**
-  - [ ] 2.1 Тул `time_machine_checkpoint_create`.
-  - [ ] 2.2 Тул `time_machine_checkpoint_list`.
-  - [ ] 2.3 Тул `time_machine_checkpoint_rollback` с обязательным флагом `confirm: true`.
-  - [ ] 2.4 Тул `time_machine_diff`.
-- [ ] **Этап 3: Клиентский интерфейс (Frontend Web UI)**
-  - [ ] 3.1 Реализация карточки настроек `settings.plugin.item` по единому гайдлайну DSH.
-  - [ ] 3.2 Создание компонента таймлайна контрольных точек.
-  - [ ] 3.3 Встраивание модального окна просмотра diff и кнопки отката.
-- [ ] **Этап 4: Тестирование и качество**
-  - [ ] 4.1 Unit-тесты для `ShadowSnapshotEngine` с моками git.
-  - [ ] 4.2 Тесты инструментов с проверкой флагов безопасности.
-  - [ ] 4.3 Smoke-прогон `npm test` без сети и инфраструктурных путей.
+## Tasks
+1. [ ] Core engine enhancements in lib/snapshot.js
+   - [ ] Fix issue #35: options object in cleanupOrphanedIndices
+   - [ ] Add staging safety guard (capture stagedTreeHash)
+   - [ ] Add selective file rollback (rollbackFile)
+   - [ ] Add diff file parsing (diffFiles / diff structured summary)
+2. [ ] Host wiring and tools in lib/index.js
+   - [ ] Pre-tool automatic checkpoints (command, bash, patch)
+   - [ ] Register time_machine_file_rollback tool
+   - [ ] Add /dsh-time-machine/rollback-file endpoint with CSRF protection
+3. [ ] Client UI improvements in lib/client.js
+   - [ ] Remove hardcoded ru locale dictionary from bundle (en + zh only)
+   - [ ] Add new localization keys (en + zh)
+   - [ ] File-by-file explorer and "Restore File" action in Diff Modal
+4. [ ] Automated Tests
+   - [ ] Add unit tests for all new functions
+   - [ ] Verify test suite passes 100%
+5. [ ] Russian localization dispatch
+   - [ ] Create issue in goodandready/dsh-russian-lang with new string keys
+6. [ ] Documentation update
+   - [ ] Update docs/design/DESIGN.md
+   - [ ] Update README.md, README.zh.md, README.ru.md
+   - [ ] Bump version to 0.1.15 in package.json
+7. [ ] MiniPC test server verification
+   - [ ] Build .tgz, install on MiniPC 192.168.1.123
+   - [ ] Verify clean boot, UI, logs, cleanup
+8. [ ] Merge PR, Release and Production Deploy
+   - [ ] PR in Gitea, squash-merge
+   - [ ] Tag v0.1.15, GitHub Release, npm publish
+   - [ ] Deploy to MiniAI 192.168.1.111 web profile
+   - [ ] Close issues #35 and #36

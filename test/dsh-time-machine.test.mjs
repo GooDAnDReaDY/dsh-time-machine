@@ -623,3 +623,80 @@ test('client uses dsh-clinebot design token styles with primary and danger butto
   assert.ok(clientText.includes('.tm-badge-ok'), 'must include badge-ok style');
   assert.ok(clientText.includes('dsh-time-machine-full-css'), 'must include standard css id');
 });
+
+test('ShadowSnapshotEngine cleanupOrphanedIndices supports options object (issue #35)', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  let executedCwd = '';
+  const eng = new ShadowSnapshotEngine({
+    exec: async (cmd, args, opts) => {
+      executedCwd = opts?.cwd;
+      if (args[0] === 'rev-parse') return { stdout: '/nonexistent/dir' };
+      return { stdout: '' };
+    }
+  });
+  await eng.cleanupOrphanedIndices({ cwd: '/custom/workspace' });
+  assert.equal(executedCwd, '/custom/workspace');
+});
+
+test('ShadowSnapshotEngine rollbackFile performs selective file checkout or unlink', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  const commands = [];
+  const eng = new ShadowSnapshotEngine({
+    exec: async (cmd, args) => {
+      commands.push([cmd, ...args]);
+      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'true' };
+      if (args[0] === 'ls-tree') return { stdout: '100644 blob abc1234\tlib/test.js' };
+      return { stdout: '' };
+    }
+  });
+  eng.snapshots.push({ id: 's1', commit: 'c1', ref: 'refs/s1', sessionId: 'sess1' });
+
+  // Test rollback existing file
+  const res = await eng.rollbackFile('s1', 'lib/test.js', { confirm: true, cwd: '/app' });
+  assert.equal(res.rolledBack, true);
+  assert.equal(res.file, 'lib/test.js');
+  assert.ok(commands.some(c => c[0] === 'git' && c[1] === 'checkout' && c[2] === 'c1' && c[4] === 'lib/test.js'));
+
+  // Test confirm requirement
+  await assert.rejects(async () => {
+    await eng.rollbackFile('s1', 'lib/test.js', { confirm: false });
+  }, /confirm required/);
+});
+
+test('ShadowSnapshotEngine diff includes structured files list', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  const eng = new ShadowSnapshotEngine({
+    exec: async (cmd, args) => {
+      if (args[0] === 'rev-parse') return { stdout: 'true' };
+      if (args[0] === 'diff' && args[1] === '--numstat') {
+        return { stdout: '10\t2\tlib/index.js\n-\t-\tasset.png\n' };
+      }
+      if (args[0] === 'diff') return { stdout: 'diff --git a/lib/index.js b/lib/index.js' };
+      return { stdout: '' };
+    }
+  });
+  eng.snapshots.push({ id: 's1', commit: 'c1', ref: 'refs/s1', label: 'chk1' });
+
+  const diffRes = await eng.diff('s1', undefined, { cwd: '/app' });
+  assert.ok(Array.isArray(diffRes.files));
+  assert.equal(diffRes.files.length, 2);
+  assert.equal(diffRes.files[0].path, 'lib/index.js');
+  assert.equal(diffRes.files[0].additions, 10);
+  assert.equal(diffRes.files[0].deletions, 2);
+  assert.equal(diffRes.files[1].binary, true);
+});
+
+test('host registers time_machine_file_rollback tool and pre-tool event trigger (static)', () => {
+  const host = read('lib/index.js');
+  assert.ok(host.includes("name: 'time_machine_file_rollback'"), 'must register time_machine_file_rollback tool');
+  assert.ok(host.includes("engine.rollbackFile("), 'tool must delegate to engine.rollbackFile');
+  assert.ok(host.includes("path: '/dsh-time-machine/rollback-file'"), 'must register HTTP rollback-file route');
+  assert.ok(host.includes("auto:pre-tool:"), 'must register pre-tool auto-checkpoint');
+});
+
+test('client bundle contains no hardcoded Russian translations and adheres to en/zh standard', () => {
+  const clientText = read('lib/client.js');
+  assert.ok(!clientText.includes('const ru = {'), 'Russian translation object must not be bundled in client.js');
+  assert.ok(!clientText.includes('Машина времени'), 'Russian phrases must not be hardcoded in client bundle');
+  assert.ok(clientText.includes('restoreFile:'), 'Must include restoreFile in en and zh');
+});
