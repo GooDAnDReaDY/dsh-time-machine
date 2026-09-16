@@ -68,6 +68,12 @@
   - Не модифицировать пользовательский `.git/index` при теневых операциях.
   - Не оставлять «висячие» ссылки `refs/dsh-time-machine/...` в Git при вытеснении чекпоинтов.
 ## Locked Design Decisions
+- 2026-09-16 — Комплексное закрытие аудита (v0.1.17, Gitea #39, #40, #41, #42, #43, #44):
+  1) Добавлен встроенный модуль автообновления (`lib/updater.js` + маршрут `/api/dsh-time-machine/update` + UI-блок `PluginUpdaterBox` в карточке настроек).
+  2) Устранены все hardcoded rgba-цвета (11 вхождений заменены на системные переменные темы `--dsw-alias-*`).
+  3) Локализация очищена от прямых ссылок на необъявленный `ru` в бандле клиентской половины, регистрация словарей обёрнута в `ctx.effect`.
+  4) В `package.json` объявлены явные зависимости слотов в `dsh.client.inject` (`@deepseek-ai/dsh-client-locale`, `@deepseek-ai/dsh-client-ui-settings`, `@deepseek-ai/dsh-client-ui-sidebar`), исключены служебные файлы из git-отслеживания и npm-пакета.
+  5) Движок снапшотов защищён от тихого глушения ошибок: при падении `read-tree` восстанавливаемого staged area выбрасывается явное исключение.
 - 2026-09-16 — Усиление безопасности API (Gitea #38) и дедупликация регистрации сайдбара (GitHub #2):
   1) Функция `isTrustedSettingsRequest` переведена на строгий fail-closed режим (проверка loopback `127.0.0.1`/`::1`/`::ffff:127.0.0.1`, `sec-fetch-site` строго `same-origin`/`none`, сверка `origin` с `host`, поддержка Bearer-токена и cookie).
   2) На всех пяти мутирующих HTTP-маршрутах (`/create`, `/delete`, `/prune`, `/rollback`, `/rollback-file`) внедрена обязательная проверка `req.method === 'POST'` с ответом `405 Method Not Allowed`, а на маршрутах чтения (`/snapshots`, `/diff`) — проверка `req.method === 'GET'`.
