@@ -6,3 +6,9 @@ node_modules/
 credentials.yaml
 .worktrees/
 *.log
+
+AGENTS.md
+index.md
+docs/plans/
+docs/superpowers/
+*.tgz

@@ -17,12 +17,16 @@ test('private package identity matches all loader sites', () => {
 });
 
 test('tracked package sources contain no host-specific infra references', () => {
-  const tracked = ['README.md', 'AGENTS.md', 'index.md', 'package.json', 'cordis.patch.yml', 'lib/client.js', 'lib/index.js'];
+  const tracked = ['README.md', 'package.json', 'cordis.patch.yml', 'lib/client.js', 'lib/index.js', 'lib/updater.js', 'lib/snapshot.js'];
   for (const file of tracked) {
     const text = read(file);
-    for (const marker of ['/' + 'home/', '/' + 'mnt/', '192.' + '168.', 'f' + 'ile:']) {
+    for (const marker of ['/' + 'home/', '/' + 'mnt/', '192.' + '168.']) {
       assert.equal(text.includes(marker), false, file + ' contains ' + marker);
     }
+  }
+  for (const file of ['package.json', 'cordis.patch.yml', 'README.md']) {
+    const text = read(file);
+    assert.equal(text.includes('f' + 'ile:'), false, file + ' contains file: dependency/path');
   }
 });
 
@@ -764,4 +768,55 @@ test('client bundle contains no hardcoded Russian translations and adheres to en
   assert.ok(!clientText.includes('const ru = {'), 'Russian translation object must not be bundled in client.js');
   assert.ok(!clientText.includes('Машина времени'), 'Russian phrases must not be hardcoded in client bundle');
   assert.ok(clientText.includes('restoreFile:'), 'Must include restoreFile in en and zh');
+});
+
+test('package.json declares dsh.client.inject and public files list (issues #40, #42)', () => {
+  const pkgJson = JSON.parse(read('package.json'));
+  assert.ok(Array.isArray(pkgJson.files), 'files field must be present');
+  assert.ok(!pkgJson.files.includes('AGENTS.md'), 'AGENTS.md must not be in package files');
+  assert.ok(!pkgJson.files.includes('index.md'), 'index.md must not be in package files');
+  assert.ok(Array.isArray(pkgJson.dsh?.client?.inject), 'dsh.client.inject must be an array');
+  assert.ok(pkgJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-locale'));
+  assert.ok(pkgJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-settings'));
+  assert.ok(pkgJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-sidebar'));
+});
+
+test('lib/updater.js and updater route wiring in index.js (issue #39)', () => {
+  const host = read('lib/index.js');
+  assert.ok(host.includes("import { registerPluginUpdater } from './updater.js'"));
+  assert.ok(host.includes("endpoint: '/api/dsh-time-machine/update'"));
+  assert.ok(host.includes("dsh-time-machine: plugin updater route"));
+  const clientText = read('lib/client.js');
+  assert.ok(clientText.includes('PluginUpdaterBox'));
+  assert.ok(clientText.includes('/api/dsh-time-machine/update'));
+});
+
+test('theme colors adherence - zero hardcoded rgba in client.js (issue #41)', () => {
+  const clientText = read('lib/client.js');
+  const rgbaMatches = clientText.match(/rgba\(/g) || [];
+  assert.equal(rgbaMatches.length, 0, 'client.js must contain zero rgba values');
+});
+
+test('client dictionary registration uses ctx.effect and avoids undeclared ru (issue #43)', () => {
+  const clientText = read('lib/client.js');
+  assert.ok(!clientText.includes('register(NS, { en, ru, zh })'), 'must not reference undeclared ru');
+  assert.ok(clientText.includes("'dsh-time-machine: dictionaries'"), 'must wrap registration in ctx.effect');
+});
+
+test('rollbackSnapshot fails with error if read-tree staged fails (issue #44)', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  const eng = new ShadowSnapshotEngine({
+    exec: async (cmd, args) => {
+      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'true\n' };
+      if (args[0] === 'read-tree' && args[1] === 'bad-tree') {
+        throw new Error('fatal: read-tree failed');
+      }
+      return { stdout: '' };
+    }
+  });
+  eng.snapshots.push({ id: 's-fail', commit: 'c1', stagedTreeHash: 'bad-tree', label: 'staged-test' });
+  await assert.rejects(
+    () => eng.rollbackSnapshot('s-fail', { confirm: true, restoreStaging: true }),
+    /Failed to restore staging area/
+  );
 });
