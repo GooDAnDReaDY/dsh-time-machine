@@ -111,6 +111,17 @@ dsh-time-machine:
 
 ## 📋 版本更新记录 (Release Notes)
 
+### v0.1.16 — API 安全强化与侧边栏标签防重注册
+* **Security (Gitea #38)**: 将 `isTrustedSettingsRequest` 升级为严格的 fail-closed 判定模式（校验本地回环 IP `127.0.0.1`/`::1`、`sec-fetch-site` 严格限制为 `same-origin` 或 `none`、校验 `origin` 与 `host` 匹配及 Bearer/Cookie 令牌）。对所有变动型接口（`/create`、`/delete`、`/prune`、`/rollback`、`/rollback-file`）强制要求 `POST` 请求（非法方法返回 `405 Method Not Allowed`），对只读接口（`/snapshots`、`/diff`）强制要求 `GET`。
+* **Fixed (GitHub #2)**: 修复在 DSH >= 0.1.6-alpha.1 环境下，原生右侧边栏 `sidebarRightTabs` 与 `betterSidebar` 同时存在时抛出 `tab kind "time-machine" is already registered` 崩溃异常的问题；采用共享防重守卫优先注册原生侧边栏，并安全抑制重复注册错误。
+
+### v0.1.15 — 单文件选择性回滚、暂存区隔离与富文本 Diff 弹窗
+* **Added in v0.1.15**: 支持单文件选择性回滚（`time_machine_file_rollback` 工具与 `/rollback-file` 接口），无需重置整个工作区即可精准恢复单个目标文件。
+* **Added in v0.1.15**: 通过 `stagedTreeHash` 实现用户暂存区隔离，创建与回滚快照时不干扰 `.git/index` 中已暂存的内容。
+* **Added in v0.1.15**: Diff 弹窗增加交互式文件列表，支持单文件变更统计与补丁分屏预览。
+* **Added in v0.1.15**: 在高危工具执行前自动触发前置快照（`auto:pre-tool:<tool>`）。
+* **Changed in v0.1.15**: 严格遵循 DSH 本地化标准（纯净 en/zh 客户端包，俄语本地化转入 `goodandready/dsh-russian-lang` 集中管理）。
+
 ### v0.1.14 — 界面风格对齐 dsh-clinebot、CSRF 防护与稳定性提升
 * **Added in v0.1.14**: 界面全面对齐 `dsh-clinebot` 设计令牌规范，通过 `--dsw-alias-*` 变量原生支持深浅色主题，提供主要操作按钮与危险操作按钮，在设置卡片与检查点列表引入状态徽章，升级磨砂半透明 Diff 弹窗。
 * **Security in v0.1.14**: 对所有变更型 HTTP 路由（`create`、`delete`、`rollback`、`prune`）实施 CSRF 防护（`isTrustedSettingsRequest`）。

@@ -549,7 +549,7 @@ test("client sidebar matrix handles all four layout combinations safely", () => 
   assert.ok(nativeRegistered, "Layout 3 (native only): native tab must register");
   assert.ok(l3.hasNativePane, "Layout 3 (native only): native pane slot must register");
 
-  // Layout 4: Both sidebars available
+  // Layout 4: Both sidebars available (native prioritized, deduplicated to prevent collision)
   let bothNative = false;
   let bothBetter = false;
   const l4 = evaluateClient({
@@ -562,8 +562,22 @@ test("client sidebar matrix handles all four layout combinations safely", () => 
   });
   assert.ok(l4.hasSettings, "Layout 4 (both): settings must register");
   assert.ok(bothNative, "Layout 4 (both): native tab registered");
-  assert.ok(bothBetter, "Layout 4 (both): betterSidebar tab registered");
+  assert.equal(bothBetter, false, "Layout 4 (both): betterSidebar tab skipped to prevent tab kind collision");
   assert.ok(l4.hasNativePane, "Layout 4 (both): native pane registered");
+
+  // Layout 5: sidebarRightTabs register throws 'already registered' - must handle gracefully
+  let threwCaught = false;
+  try {
+    evaluateClient({
+      sidebarRightTabs: {
+        register: () => { throw new Error('sidebarRight: tab kind "time-machine" is already registered (extension)'); },
+      },
+    });
+    threwCaught = true;
+  } catch (e) {
+    threwCaught = false;
+  }
+  assert.ok(threwCaught, "Layout 5: already registered error must be handled gracefully");
 });
 
 test("TimeMachineIcon handles both props object and numeric argument with explicit bounding box", () => {
@@ -581,14 +595,43 @@ test('client settings does not register top-level settings.section and resolves 
   assert.ok(clientText.includes("ctx.get('settingsScope')"), 'must use ctx.get for settingsScope resolution');
 });
 
-test('http helper enforces payload limits, CSRF check and writeJson headers', async () => {
+test('http helper enforces payload limits, fail-closed CSRF check and writeJson headers', async () => {
   const { isTrustedSettingsRequest, readBody, writeJson } = await import('../lib/http.js');
   
-  // CSRF test
+  // CSRF fail-closed tests (Issue #38)
   assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'cross-site' } }), false);
   assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'same-origin' } }), true);
   assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'none' } }), true);
-  assert.equal(isTrustedSettingsRequest({ headers: {} }), true);
+
+  // Missing sec-fetch-site on external IP is rejected (fail-closed)
+  assert.equal(isTrustedSettingsRequest({ headers: {}, socket: { remoteAddress: '198.51.100.1' } }), false);
+  assert.equal(isTrustedSettingsRequest(null), false);
+  assert.equal(isTrustedSettingsRequest({}), false);
+
+  // Loopback requests allowed even without sec-fetch-site
+  assert.equal(isTrustedSettingsRequest({ headers: {}, socket: { remoteAddress: '127.0.0.1' } }), true);
+  assert.equal(isTrustedSettingsRequest({ headers: {}, socket: { remoteAddress: '::1' } }), true);
+  assert.equal(isTrustedSettingsRequest({ headers: {}, socket: { remoteAddress: '::ffff:127.0.0.1' } }), true);
+
+  // Matching origin and host allowed
+  assert.equal(isTrustedSettingsRequest({
+    headers: { origin: 'http://my-host:3000', host: 'my-host:3000' },
+    socket: { remoteAddress: '192.168.1.50' }
+  }), true);
+  assert.equal(isTrustedSettingsRequest({
+    headers: { origin: 'https://evil.com', host: 'my-host:3000' },
+    socket: { remoteAddress: '192.168.1.50' }
+  }), false);
+
+  // Token auth allowed
+  assert.equal(isTrustedSettingsRequest({
+    headers: { authorization: 'Bearer tok123' },
+    socket: { remoteAddress: '198.51.100.1' }
+  }), true);
+  assert.equal(isTrustedSettingsRequest({
+    headers: { cookie: 'dsh_token=abc' },
+    socket: { remoteAddress: '198.51.100.1' }
+  }), true);
 
   // writeJson test
   let writtenCode = 0;
@@ -602,6 +645,28 @@ test('http helper enforces payload limits, CSRF check and writeJson headers', as
   assert.equal(writtenCode, 200);
   assert.equal(writtenHeaders['Cache-Control'], 'no-store');
   assert.equal(JSON.parse(writtenBody).ok, true);
+});
+
+test('HTTP web routes enforce method restrictions (405 Method Not Allowed)', () => {
+  const host = read('lib/index.js');
+  // Write routes must require POST
+  const writeRoutes = [
+    "path: '/dsh-time-machine/create'",
+    "path: '/dsh-time-machine/delete'",
+    "path: '/dsh-time-machine/prune'",
+    "path: '/dsh-time-machine/rollback'",
+    "path: '/dsh-time-machine/rollback-file'",
+  ];
+  for (const route of writeRoutes) {
+    assert.ok(host.includes(route), `must include ${route}`);
+  }
+  const postChecks = (host.match(/req\.method !== 'POST'/g) || []).length;
+  assert.ok(postChecks >= 5, 'must enforce POST on all 5 mutation routes');
+
+  const getChecks = (host.match(/req\.method !== 'GET'/g) || []).length;
+  assert.ok(getChecks >= 2, 'must enforce GET on read routes');
+  assert.ok(host.includes('Method Not Allowed. POST required.'), 'must return 405 for write routes');
+  assert.ok(host.includes('Method Not Allowed. GET required.'), 'must return 405 for read routes');
 });
 
 test('ShadowSnapshotEngine cleanupOrphanedIndices handles gitDir safely', async () => {

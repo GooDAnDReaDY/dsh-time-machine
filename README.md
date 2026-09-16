@@ -136,6 +136,17 @@ dsh-time-machine:
 
 ## 📋 Release Notes
 
+### v0.1.16 — Security Hardening & Sidebar Tab Deduplication
+* **Security (Gitea #38)**: Converted `isTrustedSettingsRequest` to a strict fail-closed model, verifying loopback IP (`127.0.0.1`, `::1`), `sec-fetch-site` (`same-origin`, `none`), request `origin` matching `host`, and bearer tokens. Enforced HTTP method restrictions across all REST routes: all 5 mutating endpoints (`/create`, `/delete`, `/prune`, `/rollback`, `/rollback-file`) strictly require `POST` and return `405 Method Not Allowed` otherwise, while read routes (`/snapshots`, `/diff`) strictly require `GET`.
+* **Fixed (GitHub #2)**: Resolved sidebar duplicate registration exception (`tab kind "time-machine" is already registered`) in DSH >= 0.1.6-alpha.1 when both native `sidebarRightTabs` and `betterSidebar` are present. Unified tab registration under a single shared guard with native sidebar precedence and safe error suppression.
+
+### v0.1.15 — Selective File Rollback, Staging Safety & Rich Diff Modal
+* **Added in v0.1.15**: Selective single-file rollback (`time_machine_file_rollback` tool and `/rollback-file` HTTP route) enabling surgical restoration of specific modified files without touching the rest of the workspace.
+* **Added in v0.1.15**: Staging area isolation via `stagedTreeHash`, protecting staged files during snapshot creation and rollback.
+* **Added in v0.1.15**: Interactive file browser in Diff Modal with per-file stat and diff patch preview.
+* **Added in v0.1.15**: Automated pre-tool checkpoints (`auto:pre-tool:<tool>`) triggered before tool executions that could modify the workspace.
+* **Changed in v0.1.15**: Strict compliance with DSH localization standard (pure en/zh client bundle, external Russian translations registered via `goodandready/dsh-russian-lang`).
+
 ### v0.1.12 — Fix Oversized Clock Icon in Native Sidebar Guide
 * **v0.1.14**: Complete visual alignment with the `dsh-clinebot` design token standard: full light/dark theme support using `--dsw-alias-*` tokens, primary and danger action buttons, status badges for settings card and timeline, dark modal unified diff viewer with backdrop blur. Added CSRF protection (`isTrustedSettingsRequest`) for all mutating HTTP routes, hooked orphaned Git index cleanup (`cleanupOrphanedIndices`) into plugin initialization, and added `autoHealPrompt` error checkpoint support to the legacy event bus fallback.
 * **v0.1.13**: Deprecated and removed top-level `settings.section` fallback to prevent occupying the flat global settings sidebar in DeepSeek Harness Web UI; plugin settings strictly reside in collapsible `settings.plugin.item` card. Harmonized settings scope resolution using safe `ctx.get('settingsScope')` proxy access.
