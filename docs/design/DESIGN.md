@@ -68,6 +68,9 @@
   - Не модифицировать пользовательский `.git/index` при теневых операциях.
   - Не оставлять «висячие» ссылки `refs/dsh-time-machine/...` в Git при вытеснении чекпоинтов.
 ## Locked Design Decisions
+- 2026-09-17 — Контракт вывода инструментов DSH и runtime-лимит снимков (Gitea #47, #48, GitHub #3, #4, PR #5):
+  1) Внедрен обязательный контракт вывода `output: TM_OUTPUT` для всех 7 зарегистрированных инструментов рабочей области (`time_machine_checkpoint_create`, `time_machine_checkpoint_list`, `time_machine_checkpoint_rollback`, `time_machine_file_rollback`, `time_machine_diff`, `time_machine_checkpoint_delete`, `time_machine_checkpoint_prune`). Схема контракта объявлена открытой (`{ type: 'object', properties: { success: { type: 'boolean' } } }` без `additionalProperties: false`), а функция `render` возвращает канонический массив текстовых блоков DSH (`[{ type: 'text', text }]`), что гарантирует успешную регистрацию инструментов в `@deepseek-ai/dsh-tools`.
+  2) Восстановлен метод `setMax(maxSnapshots, targetCwd)` в классе `ShadowSnapshotEngine` с вызовом через асинхронную очередь `_enqueue` и обрезкой `_trimFor(sessionId, targetCwd)`. Обеспечено корректное ограничение значений (`Math.max(1, Number(maxSnapshots) || 20)`), удаление вытесненных ссылок Git (`git update-ref -d`) и бесперебойная работа наблюдателя `scope.watch(syncMax)`.
 - 2026-09-16 — Комплексное закрытие аудита (v0.1.17, Gitea #39, #40, #41, #42, #43, #44):
   1) Добавлен встроенный модуль автообновления (`lib/updater.js` + маршрут `/api/dsh-time-machine/update` + UI-блок `PluginUpdaterBox` в карточке настроек).
   2) Устранены все hardcoded rgba-цвета (11 вхождений заменены на системные переменные темы `--dsw-alias-*`).
