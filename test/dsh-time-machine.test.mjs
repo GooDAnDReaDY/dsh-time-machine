@@ -820,3 +820,111 @@ test('rollbackSnapshot fails with error if read-tree staged fails (issue #44)', 
     /Failed to restore staging area/
   );
 });
+
+test('tools declare output contract with schema and render function (issue #47)', () => {
+  const host = read('lib/index.js');
+
+  // Verify TM_OUTPUT is defined with schema and render function
+  assert.ok(host.includes('const TM_OUTPUT = {'), 'must declare shared TM_OUTPUT contract');
+  assert.ok(host.includes("render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }]"), 'must provide canonical render block');
+  assert.ok(host.includes("properties: {") && host.includes("success: { type: 'boolean' }"), 'must declare success boolean schema');
+  assert.ok(!host.includes("additionalProperties: false"), 'must keep additionalProperties open for engine payloads');
+
+  // Verify all 7 tools declare output: TM_OUTPUT
+  const expectedTools = [
+    'time_machine_checkpoint_create',
+    'time_machine_checkpoint_list',
+    'time_machine_checkpoint_rollback',
+    'time_machine_file_rollback',
+    'time_machine_diff',
+    'time_machine_checkpoint_delete',
+    'time_machine_checkpoint_prune',
+  ];
+
+  for (const name of expectedTools) {
+    const toolRegex = new RegExp("name:\\s*'" + name + "'[\\s\\S]*?output:\\s*TM_OUTPUT");
+    assert.ok(toolRegex.test(host), `tool ${name} must declare output: TM_OUTPUT`);
+  }
+
+  // Functional test of the TM_OUTPUT contract
+  const TM_OUTPUT = {
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+      },
+    },
+    render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+  };
+
+  assert.equal(typeof TM_OUTPUT.render, 'function');
+  const rendered = TM_OUTPUT.render({}, { success: true, dummy: 'ok' });
+  assert.ok(Array.isArray(rendered));
+  assert.equal(rendered[0]?.type, 'text');
+  assert.ok(rendered[0]?.text?.includes('"success": true'));
+  assert.equal(TM_OUTPUT.schema.type, 'object');
+  assert.equal(TM_OUTPUT.schema.additionalProperties, undefined);
+});
+
+test('setMax applies the runtime snapshot cap, deletes evicted refs and supports settings watch (issue #48)', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  assert.equal(typeof ShadowSnapshotEngine.prototype.setMax, 'function', 'host syncMax calls engine.setMax');
+
+  const deletedRefs = [];
+  const exec = async (cmd, args) => {
+    if (args[0] === 'update-ref' && args[1] === '-d') deletedRefs.push(args[2]);
+    return { stdout: '' };
+  };
+
+  const eng = new ShadowSnapshotEngine({ exec });
+
+  // 1. Test clamp table
+  await eng.setMax(0);
+  assert.equal(eng.maxSnapshots, 20, '0 falls back to default 20');
+  await eng.setMax('invalid');
+  assert.equal(eng.maxSnapshots, 20, 'NaN string falls back to default 20');
+  await eng.setMax(-5);
+  assert.equal(eng.maxSnapshots, 1, 'Negative numbers clamped to minimum 1');
+  await eng.setMax(5);
+  assert.equal(eng.maxSnapshots, 5, 'Valid positive number accepted');
+
+  // 2. Test per-session trimming and evicted ref deletion
+  eng.snapshots = [
+    { id: 's1_1', sessionId: 's1', createdAt: 100, seq: 1, ref: 'refs/dsh-time-machine/s1/s1_1' },
+    { id: 's1_2', sessionId: 's1', createdAt: 200, seq: 2, ref: 'refs/dsh-time-machine/s1/s1_2' },
+    { id: 's1_3', sessionId: 's1', createdAt: 300, seq: 3, ref: 'refs/dsh-time-machine/s1/s1_3' },
+    { id: 's1_4', sessionId: 's1', createdAt: 400, seq: 4, ref: 'refs/dsh-time-machine/s1/s1_4' },
+    { id: 's2_1', sessionId: 's2', createdAt: 500, seq: 5, ref: 'refs/dsh-time-machine/s2/s2_1' },
+    { id: 's2_2', sessionId: 's2', createdAt: 600, seq: 6, ref: 'refs/dsh-time-machine/s2/s2_2' },
+  ];
+
+  await eng.setMax(2, '/test/cwd');
+
+  const s1Snaps = eng.snapshots.filter(s => s.sessionId === 's1');
+  const s2Snaps = eng.snapshots.filter(s => s.sessionId === 's2');
+  assert.equal(s1Snaps.length, 2, 'Session s1 must be trimmed to maxSnapshots (2)');
+  assert.equal(s2Snaps.length, 2, 'Session s2 must remain intact at 2');
+  assert.equal(s1Snaps[0].id, 's1_3', 'Oldest s1 snapshots removed');
+  assert.equal(s1Snaps[1].id, 's1_4');
+
+  assert.ok(deletedRefs.includes('refs/dsh-time-machine/s1/s1_1'), 'Evicted ref 1 must be deleted');
+  assert.ok(deletedRefs.includes('refs/dsh-time-machine/s1/s1_2'), 'Evicted ref 2 must be deleted');
+
+  // 3. Test global fallback when sessions empty
+  deletedRefs.length = 0;
+  eng.snapshots = [
+    { id: 'g1', sessionId: '', createdAt: 10, seq: 1, ref: 'refs/dsh-time-machine/g1' },
+    { id: 'g2', sessionId: '', createdAt: 20, seq: 2, ref: 'refs/dsh-time-machine/g2' },
+    { id: 'g3', sessionId: '', createdAt: 30, seq: 3, ref: 'refs/dsh-time-machine/g3' },
+  ];
+  await eng.setMax(1, '/test/cwd');
+  assert.equal(eng.snapshots.length, 1, 'Global snapshots trimmed to 1');
+  assert.equal(eng.snapshots[0].id, 'g3', 'Newest global snapshot kept');
+  assert.ok(deletedRefs.includes('refs/dsh-time-machine/g1'));
+  assert.ok(deletedRefs.includes('refs/dsh-time-machine/g2'));
+
+  // 4. Test host apply wiring (scope.watch registration)
+  const host = read('lib/index.js');
+  assert.ok(host.includes('const syncMax = () => engine.setMax('), 'host syncMax invokes setMax');
+  assert.ok(host.includes('scope.watch(syncMax)'), 'settings watcher bound to syncMax');
+});
