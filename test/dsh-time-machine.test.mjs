@@ -700,3 +700,54 @@ test('client bundle contains no hardcoded Russian translations and adheres to en
   assert.ok(!clientText.includes('Машина времени'), 'Russian phrases must not be hardcoded in client bundle');
   assert.ok(clientText.includes('restoreFile:'), 'Must include restoreFile in en and zh');
 });
+
+// The host half re-syncs the maxSnapshots setting through engine.setMax(...) on every
+// settings change (syncMax + scope.watch). 0f72458 rewrote snapshot.js and dropped the
+// method while the call site survived, so the cap silently stopped following the setting.
+test('setMax applies the runtime snapshot cap (settings watch entry point)', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  assert.equal(typeof ShadowSnapshotEngine.prototype.setMax, 'function', 'host syncMax calls engine.setMax');
+
+  const deletedRefs = [];
+  const exec = async (cmd, args) => {
+    if (args[0] === 'update-ref' && args[1] === '-d') deletedRefs.push(args[2]);
+    return { stdout: '' };
+  };
+
+  // session-scoped snapshots: every session obeys the cap, other sessions stay put
+  const eng = new ShadowSnapshotEngine({ exec, maxSnapshots: 5 });
+  eng.snapshots.push(
+    { id: 'a1', sessionId: 'A', ref: 'refs/dsh-time-machine/A/a1', seq: 1 },
+    { id: 'a2', sessionId: 'A', ref: 'refs/dsh-time-machine/A/a2', seq: 2 },
+    { id: 'a3', sessionId: 'A', ref: 'refs/dsh-time-machine/A/a3', seq: 3 },
+    { id: 'b1', sessionId: 'B', ref: 'refs/dsh-time-machine/B/b1', seq: 4 },
+  );
+  await eng.setMax(2, '/workspace');
+  assert.equal(eng.maxSnapshots, 2);
+  assert.equal(eng.getSnapshot('a1'), null, 'oldest sessA evicted');
+  assert.ok(eng.getSnapshot('a2') && eng.getSnapshot('a3'), 'newest two of sessA kept');
+  assert.ok(eng.getSnapshot('b1'), 'sessB untouched');
+  assert.ok(deletedRefs.includes('refs/dsh-time-machine/A/a1'), 'evicted ref deleted from git');
+
+  // session-less snapshots fall back to the global cap
+  const loose = new ShadowSnapshotEngine({ exec, maxSnapshots: 5 });
+  loose.snapshots.push(
+    { id: '1', ref: 'refs/dsh-time-machine/1', seq: 1 },
+    { id: '2', ref: 'refs/dsh-time-machine/2', seq: 2 },
+    { id: '3', ref: 'refs/dsh-time-machine/3', seq: 3 },
+  );
+  await loose.setMax(2);
+  assert.equal(loose.snapshots.length, 2);
+  assert.equal(loose.getSnapshot('1'), null, 'oldest evicted');
+
+  // historical clamp contract: Number(n) || 20, floored at 1
+  const clamp = new ShadowSnapshotEngine({ exec, maxSnapshots: 5 });
+  await clamp.setMax('nope');
+  assert.equal(clamp.maxSnapshots, 20);
+  await clamp.setMax(0);
+  assert.equal(clamp.maxSnapshots, 20);
+  await clamp.setMax(-5);
+  assert.equal(clamp.maxSnapshots, 1);
+  await clamp.setMax('3');
+  assert.equal(clamp.maxSnapshots, 3);
+});
