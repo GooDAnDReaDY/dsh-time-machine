@@ -242,8 +242,12 @@ test('browser entry compatible with DSH 0.1.2-alpha.2 (no dsh-client-runtime)', 
 
 test('client registration is declaration-safe (alpha2 SlotCore)', () => {
   const text = read('lib/client.js');
-  assert.ok(text.includes("ctx.slots.inject('settings.plugin.item'") || text.includes('ctx.slots.inject("settings.plugin.item"'), 'must use slots.inject for settings.plugin.item');
-  assert.ok(text.includes("ctx.inject(['betterSidebar']") || text.includes('ctx.inject(["betterSidebar"]'), 'betterSidebar via inject single path');
+  // Both seats must go through slots.inject: the Plugins page row seat the current
+  // core renders, and the legacy settings.plugin.item card.
+  assert.ok(text.includes("ctx.slots.inject(seat.name") || text.includes('ctx.slots.inject(seat.name'), 'must use slots.inject for the settings seats');
+  assert.ok(text.includes("name: 'plugins.row.config'"), 'row seat is declared');
+  assert.ok(text.includes("name: 'settings.plugin.item'"), 'legacy seat is declared');
+  assert.ok(text.includes('ctx.inject([\'betterSidebar\']') || text.includes('ctx.inject(["betterSidebar"]'), 'betterSidebar via inject single path');
   // old direct double-path must be gone (call site, not definition)
   assert.equal((text.match(/registerBetterSidebar\(ctx\);/g) || []).length, 0, 'should not have direct registerBetterSidebar(ctx); double path');
 });
