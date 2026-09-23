@@ -2,6 +2,32 @@
 
 Notable changes to `@goodandready/dsh-time-machine`.
 
+## 0.1.21
+
+### Security
+- **Hardened HTTP settings & web routes validation**: improved `isTrustedSettingsRequest`
+  to reject `Sec-Fetch-Site: cross-site`, validated `Origin`/`Referer` headers against `Host` and
+  `X-Forwarded-Host`, and removed unverified token fallbacks. Added `isTrustedSettingsRequest`
+  protection to `GET /dsh-time-machine/snapshots` and `GET /dsh-time-machine/diff` (#59, #60).
+
+### Fixed
+- **Cleanup orphaned indices in non-git directories**: `cleanupOrphanedIndices` now safely verifies
+  whether the working directory is a git repository before invoking `git rev-parse --git-dir`,
+  preventing fatal git errors during startup in non-git directories (#57, #61).
+- **Descriptive rollback errors without git commit**: `rollbackSnapshot` and `rollbackFile` now fail
+  with an explicit error if a target snapshot lacks an associated git commit, avoiding false success (#58).
+- **Session snapshot limits on turn end**: event listener for `turn/end` now respects the configured
+  `maxSnapshots` limit instead of truncating history to 3 snapshots (#56).
+
+### Performance
+- **Optimized snapshot creation**: added `skipIfNoChanges` fast check using `git status --porcelain`
+  and HEAD verification to avoid redundant `git add -A` and object writes on clean trees, plus label
+  newline sanitization (#55).
+
+### Release
+- **Canonical GitHub mirror publishing script**: added executable `scripts/publish-github.sh` with
+  `--check` dry-run and sanitized tree packaging for mirror synchronization (#53).
+
 ## 0.1.20
 
 ### Fixed
