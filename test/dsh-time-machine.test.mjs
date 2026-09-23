@@ -168,9 +168,9 @@ test('host apply restores refs on boot', () => {
   assert.ok(host.includes('engine.loadFromRefs()') || host.includes('engine.loadFromRefs'), 'must load refs on apply');
 });
 
-test('turn/end auto-prune keeps 3 on success', async () => {
+test('turn/end auto-prune respects maxSnapshots setting on success (issue #56)', async () => {
   const host = read('lib/index.js');
-  assert.ok(host.includes("engine.pruneSnapshots(sid, 3)"), 'prune(keep 3) wired on success');
+  assert.ok(host.includes("engine.pruneSnapshots(sid, getConfig().maxSnapshots ?? 20"), 'prune uses maxSnapshots config');
   assert.ok(host.includes("outcome === 'success'"), 'success outcome checked');
 });
 
