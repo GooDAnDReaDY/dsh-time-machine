@@ -609,7 +609,7 @@ test('http helper enforces payload limits, fail-closed CSRF check and writeJson 
   // CSRF fail-closed tests (Issue #38)
   assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'cross-site' } }), false);
   assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'same-origin' } }), true);
-  assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'none' } }), true);
+  assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'none' }, socket: { remoteAddress: '127.0.0.1' } }), true);
 
   // Missing sec-fetch-site on external IP is rejected (fail-closed)
   assert.equal(isTrustedSettingsRequest({ headers: {}, socket: { remoteAddress: '198.51.100.1' } }), false);
@@ -631,14 +631,26 @@ test('http helper enforces payload limits, fail-closed CSRF check and writeJson 
     socket: { remoteAddress: '192.168.1.50' }
   }), false);
 
-  // Token auth allowed
+  // Unverified Bearer and cookie without origin/referer rejected (Issue #59)
   assert.equal(isTrustedSettingsRequest({
     headers: { authorization: 'Bearer tok123' },
     socket: { remoteAddress: '198.51.100.1' }
-  }), true);
+  }), false);
   assert.equal(isTrustedSettingsRequest({
     headers: { cookie: 'dsh_token=abc' },
     socket: { remoteAddress: '198.51.100.1' }
+  }), false);
+
+  // Cross-site rejected even from loopback (Issue #59)
+  assert.equal(isTrustedSettingsRequest({
+    headers: { 'sec-fetch-site': 'cross-site' },
+    socket: { remoteAddress: '127.0.0.1' }
+  }), false);
+
+  // Referer matching host allowed
+  assert.equal(isTrustedSettingsRequest({
+    headers: { referer: 'http://my-host:3000/some/path', host: 'my-host:3000' },
+    socket: { remoteAddress: '192.168.1.50' }
   }), true);
 
   // writeJson test
@@ -675,6 +687,10 @@ test('HTTP web routes enforce method restrictions (405 Method Not Allowed)', () 
   assert.ok(getChecks >= 2, 'must enforce GET on read routes');
   assert.ok(host.includes('Method Not Allowed. POST required.'), 'must return 405 for write routes');
   assert.ok(host.includes('Method Not Allowed. GET required.'), 'must return 405 for read routes');
+
+  // Verify all 7 web routes enforce isTrustedSettingsRequest (Issue #60)
+  const trustedChecks = host.split('!isTrustedSettingsRequest(req)').length - 1;
+  assert.equal(trustedChecks, 7, 'all 7 web routes (5 write + 2 read) must enforce isTrustedSettingsRequest');
 });
 
 test('ShadowSnapshotEngine cleanupOrphanedIndices handles gitDir safely', async () => {
