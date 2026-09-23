@@ -687,6 +687,10 @@ test('HTTP web routes enforce method restrictions (405 Method Not Allowed)', () 
   assert.ok(getChecks >= 2, 'must enforce GET on read routes');
   assert.ok(host.includes('Method Not Allowed. POST required.'), 'must return 405 for write routes');
   assert.ok(host.includes('Method Not Allowed. GET required.'), 'must return 405 for read routes');
+
+  // Verify all 7 web routes enforce isTrustedSettingsRequest (Issue #60)
+  const trustedChecks = host.split('!isTrustedSettingsRequest(req)').length - 1;
+  assert.equal(trustedChecks, 7, 'all 7 web routes (5 write + 2 read) must enforce isTrustedSettingsRequest');
 });
 
 test('ShadowSnapshotEngine cleanupOrphanedIndices handles gitDir safely', async () => {
