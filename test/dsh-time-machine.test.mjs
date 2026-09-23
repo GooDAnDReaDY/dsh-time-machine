@@ -609,7 +609,7 @@ test('http helper enforces payload limits, fail-closed CSRF check and writeJson 
   // CSRF fail-closed tests (Issue #38)
   assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'cross-site' } }), false);
   assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'same-origin' } }), true);
-  assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'none' } }), true);
+  assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'none' }, socket: { remoteAddress: '127.0.0.1' } }), true);
 
   // Missing sec-fetch-site on external IP is rejected (fail-closed)
   assert.equal(isTrustedSettingsRequest({ headers: {}, socket: { remoteAddress: '198.51.100.1' } }), false);
@@ -631,14 +631,26 @@ test('http helper enforces payload limits, fail-closed CSRF check and writeJson 
     socket: { remoteAddress: '192.168.1.50' }
   }), false);
 
-  // Token auth allowed
+  // Unverified Bearer and cookie without origin/referer rejected (Issue #59)
   assert.equal(isTrustedSettingsRequest({
     headers: { authorization: 'Bearer tok123' },
     socket: { remoteAddress: '198.51.100.1' }
-  }), true);
+  }), false);
   assert.equal(isTrustedSettingsRequest({
     headers: { cookie: 'dsh_token=abc' },
     socket: { remoteAddress: '198.51.100.1' }
+  }), false);
+
+  // Cross-site rejected even from loopback (Issue #59)
+  assert.equal(isTrustedSettingsRequest({
+    headers: { 'sec-fetch-site': 'cross-site' },
+    socket: { remoteAddress: '127.0.0.1' }
+  }), false);
+
+  // Referer matching host allowed
+  assert.equal(isTrustedSettingsRequest({
+    headers: { referer: 'http://my-host:3000/some/path', host: 'my-host:3000' },
+    socket: { remoteAddress: '192.168.1.50' }
   }), true);
 
   // writeJson test
