@@ -49,8 +49,8 @@ test('ShadowSnapshotEngine create/list/rollback/diff with maxSnapshots', async (
   await assert.rejects(() => eng.rollbackSnapshot(b.id, { confirm: false }), /confirm/);
   await assert.rejects(() => eng.rollbackSnapshot(b.id, {}), /confirm/);
   await assert.rejects(() => eng.rollbackSnapshot('nope', { confirm: true }), /not found/);
-  const ok = await eng.rollbackSnapshot(c.id, { confirm: true });
-  assert.equal(ok.rolledBack, true);
+  // Snapshot without git commit must reject with descriptive error (Issue #58)
+  await assert.rejects(() => eng.rollbackSnapshot(c.id, { confirm: true }), /git commit/);
   const diff = await eng.diff(c.id);
   assert.ok(diff.diff.includes('diff'));
   await assert.rejects(() => eng.diff('missing'), /not found/);
@@ -962,4 +962,20 @@ test('ShadowSnapshotEngine cleanupOrphanedIndices skips git commands when not a 
   await eng.cleanupOrphanedIndices('/non-git-dir');
   assert.equal(commands.length, 1);
   assert.deepEqual(commands[0], ['git', 'rev-parse', '--is-inside-work-tree']);
+});
+
+test('rollbackSnapshot and rollbackFile reject with error if snapshot lacks commit or git (issue #58)', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  const eng = new ShadowSnapshotEngine({
+    exec: async () => ({ stdout: '' })
+  });
+  eng.snapshots.push({ id: 's-no-commit', label: 'test', commit: null, sessionId: 's1' });
+  await assert.rejects(
+    () => eng.rollbackSnapshot('s-no-commit', { confirm: true }),
+    /does not have an associated git commit/
+  );
+  await assert.rejects(
+    () => eng.rollbackFile('s-no-commit', 'some/file.js', { confirm: true }),
+    /does not have an associated git commit/
+  );
 });
