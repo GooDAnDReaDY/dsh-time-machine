@@ -948,3 +948,18 @@ test('setMax applies the runtime snapshot cap, deletes evicted refs and supports
   assert.ok(host.includes('const syncMax = () => engine.setMax('), 'host syncMax invokes setMax');
   assert.ok(host.includes('scope.watch(syncMax)'), 'settings watcher bound to syncMax');
 });
+
+test('ShadowSnapshotEngine cleanupOrphanedIndices skips git commands when not a git repository (issues #57, #61)', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  const commands = [];
+  const eng = new ShadowSnapshotEngine({
+    exec: async (cmd, args) => {
+      commands.push([cmd, ...args]);
+      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'false' };
+      return { stdout: '' };
+    }
+  });
+  await eng.cleanupOrphanedIndices('/non-git-dir');
+  assert.equal(commands.length, 1);
+  assert.deepEqual(commands[0], ['git', 'rev-parse', '--is-inside-work-tree']);
+});
