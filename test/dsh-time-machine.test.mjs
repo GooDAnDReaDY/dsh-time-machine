@@ -979,3 +979,33 @@ test('rollbackSnapshot and rollbackFile reject with error if snapshot lacks comm
     /does not have an associated git commit/
   );
 });
+
+test('createSnapshot with skipIfNoChanges avoids git add when workspace is clean (issue #55)', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  const commands = [];
+  const exec = async (cmd, args) => {
+    commands.push([cmd, ...args]);
+    if (args[0] === 'rev-parse') {
+      if (args[1] === '--is-inside-work-tree') return { stdout: 'true\n' };
+      if (args[1] === '--git-dir') return { stdout: '.git\n' };
+      if (args[2] === 'HEAD') return { stdout: 'commit-abc\n' };
+    }
+    if (args[0] === 'write-tree') return { stdout: 'tree-abc\n' };
+    if (args[0] === 'commit-tree') return { stdout: 'commit-abc\n' };
+    if (args[0] === 'status' && args[1] === '--porcelain') return { stdout: '' };
+    return { stdout: '' };
+  };
+
+  const eng = new ShadowSnapshotEngine({ exec });
+  const s1 = await eng.createSnapshot('first', { sessionId: 'sess-skip' });
+  assert.equal(s1.commit, 'commit-abc');
+
+  const initialAddCalls = commands.filter(c => c[1] === 'add').length;
+  assert.equal(initialAddCalls, 1);
+
+  // Second call with skipIfNoChanges: true on clean working tree
+  const s2 = await eng.createSnapshot('second', { sessionId: 'sess-skip', skipIfNoChanges: true });
+  assert.equal(s2.id, s1.id);
+  const finalAddCalls = commands.filter(c => c[1] === 'add').length;
+  assert.equal(finalAddCalls, 1, 'must not run git add when skipIfNoChanges is true and workspace is clean');
+});
