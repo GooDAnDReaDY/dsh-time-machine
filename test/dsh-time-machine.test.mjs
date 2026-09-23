@@ -49,8 +49,8 @@ test('ShadowSnapshotEngine create/list/rollback/diff with maxSnapshots', async (
   await assert.rejects(() => eng.rollbackSnapshot(b.id, { confirm: false }), /confirm/);
   await assert.rejects(() => eng.rollbackSnapshot(b.id, {}), /confirm/);
   await assert.rejects(() => eng.rollbackSnapshot('nope', { confirm: true }), /not found/);
-  const ok = await eng.rollbackSnapshot(c.id, { confirm: true });
-  assert.equal(ok.rolledBack, true);
+  // Snapshot without git commit must reject with descriptive error (Issue #58)
+  await assert.rejects(() => eng.rollbackSnapshot(c.id, { confirm: true }), /git commit/);
   const diff = await eng.diff(c.id);
   assert.ok(diff.diff.includes('diff'));
   await assert.rejects(() => eng.diff('missing'), /not found/);
@@ -168,9 +168,9 @@ test('host apply restores refs on boot', () => {
   assert.ok(host.includes('engine.loadFromRefs()') || host.includes('engine.loadFromRefs'), 'must load refs on apply');
 });
 
-test('turn/end auto-prune keeps 3 on success', async () => {
+test('turn/end auto-prune respects maxSnapshots setting on success (issue #56)', async () => {
   const host = read('lib/index.js');
-  assert.ok(host.includes("engine.pruneSnapshots(sid, 3)"), 'prune(keep 3) wired on success');
+  assert.ok(host.includes("engine.pruneSnapshots(sid, getConfig().maxSnapshots ?? 20"), 'prune uses maxSnapshots config');
   assert.ok(host.includes("outcome === 'success'"), 'success outcome checked');
 });
 
@@ -947,4 +947,65 @@ test('setMax applies the runtime snapshot cap, deletes evicted refs and supports
   const host = read('lib/index.js');
   assert.ok(host.includes('const syncMax = () => engine.setMax('), 'host syncMax invokes setMax');
   assert.ok(host.includes('scope.watch(syncMax)'), 'settings watcher bound to syncMax');
+});
+
+test('ShadowSnapshotEngine cleanupOrphanedIndices skips git commands when not a git repository (issues #57, #61)', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  const commands = [];
+  const eng = new ShadowSnapshotEngine({
+    exec: async (cmd, args) => {
+      commands.push([cmd, ...args]);
+      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'false' };
+      return { stdout: '' };
+    }
+  });
+  await eng.cleanupOrphanedIndices('/non-git-dir');
+  assert.equal(commands.length, 1);
+  assert.deepEqual(commands[0], ['git', 'rev-parse', '--is-inside-work-tree']);
+});
+
+test('rollbackSnapshot and rollbackFile reject with error if snapshot lacks commit or git (issue #58)', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  const eng = new ShadowSnapshotEngine({
+    exec: async () => ({ stdout: '' })
+  });
+  eng.snapshots.push({ id: 's-no-commit', label: 'test', commit: null, sessionId: 's1' });
+  await assert.rejects(
+    () => eng.rollbackSnapshot('s-no-commit', { confirm: true }),
+    /does not have an associated git commit/
+  );
+  await assert.rejects(
+    () => eng.rollbackFile('s-no-commit', 'some/file.js', { confirm: true }),
+    /does not have an associated git commit/
+  );
+});
+
+test('createSnapshot with skipIfNoChanges avoids git add when workspace is clean (issue #55)', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  const commands = [];
+  const exec = async (cmd, args) => {
+    commands.push([cmd, ...args]);
+    if (args[0] === 'rev-parse') {
+      if (args[1] === '--is-inside-work-tree') return { stdout: 'true\n' };
+      if (args[1] === '--git-dir') return { stdout: '.git\n' };
+      if (args[2] === 'HEAD') return { stdout: 'commit-abc\n' };
+    }
+    if (args[0] === 'write-tree') return { stdout: 'tree-abc\n' };
+    if (args[0] === 'commit-tree') return { stdout: 'commit-abc\n' };
+    if (args[0] === 'status' && args[1] === '--porcelain') return { stdout: '' };
+    return { stdout: '' };
+  };
+
+  const eng = new ShadowSnapshotEngine({ exec });
+  const s1 = await eng.createSnapshot('first', { sessionId: 'sess-skip' });
+  assert.equal(s1.commit, 'commit-abc');
+
+  const initialAddCalls = commands.filter(c => c[1] === 'add').length;
+  assert.equal(initialAddCalls, 1);
+
+  // Second call with skipIfNoChanges: true on clean working tree
+  const s2 = await eng.createSnapshot('second', { sessionId: 'sess-skip', skipIfNoChanges: true });
+  assert.equal(s2.id, s1.id);
+  const finalAddCalls = commands.filter(c => c[1] === 'add').length;
+  assert.equal(finalAddCalls, 1, 'must not run git add when skipIfNoChanges is true and workspace is clean');
 });
