@@ -2,6 +2,17 @@
 
 Notable changes to `@goodandready/dsh-time-machine`.
 
+## 0.1.22
+
+### Security
+- **Strict path traversal and symlink escape protection in selective rollback**: `rollbackFile`
+  now strictly rejects absolute paths, `..` directory traversal attempts, and symlink escapes
+  outside the repository workspace before invoking Git checkout or unlinking files (#65).
+- **Hardened HTTP trust validation against same-site requests**: `isTrustedSettingsRequest`
+  now categorically rejects `sec-fetch-site: same-site` requests, enforces verified `Origin`
+  or `Referer` headers matching the server Host for all non-loopback clients, and restricts
+  unauthenticated requests strictly to local loopback (#38).
+
 ## 0.1.21
 
 ### Security
