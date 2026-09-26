@@ -1009,3 +1009,52 @@ test('createSnapshot with skipIfNoChanges avoids git add when workspace is clean
   const finalAddCalls = commands.filter(c => c[1] === 'add').length;
   assert.equal(finalAddCalls, 1, 'must not run git add when skipIfNoChanges is true and workspace is clean');
 });
+
+test('rollbackFile rejects paths outside workspace and prevents traversal escapes (issue #65)', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js');
+  const os = await import('node:os');
+  const fsPromises = await import('node:fs/promises');
+  const tmpDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'tm-sec-test-'));
+  const outsideFile = path.join(tmpDir, 'outside-sentinel.txt');
+  const workDir = path.join(tmpDir, 'workspace');
+  await fsPromises.mkdir(workDir, { recursive: true });
+  await fsPromises.writeFile(outsideFile, 'should-not-be-deleted', 'utf8');
+
+  try {
+    const exec = async (cmd, args) => {
+      if (args[0] === 'rev-parse') return { stdout: 'true\n' };
+      return { stdout: '' };
+    };
+
+    const eng = new ShadowSnapshotEngine({ exec });
+    eng.snapshots = [{
+      id: 'snap-test-65',
+      label: 'test',
+      commit: 'commit-test-65',
+      createdAt: Date.now(),
+      sessionId: 'sess-65',
+    }];
+
+    // 1. Relative path with .. traversal
+    await assert.rejects(
+      () => eng.rollbackFile('snap-test-65', '../outside-sentinel.txt', { confirm: true, cwd: workDir }),
+      /Path traversal detected/
+    );
+    // Verify outside file was NOT deleted
+    assert.equal(await fsPromises.readFile(outsideFile, 'utf8'), 'should-not-be-deleted');
+
+    // 2. Absolute path
+    await assert.rejects(
+      () => eng.rollbackFile('snap-test-65', outsideFile, { confirm: true, cwd: workDir }),
+      /Absolute paths are not allowed/
+    );
+
+    // 3. Confirm missing
+    await assert.rejects(
+      () => eng.rollbackFile('snap-test-65', 'valid.txt', { confirm: false, cwd: workDir }),
+      /confirm required/
+    );
+  } finally {
+    await fsPromises.rm(tmpDir, { recursive: true, force: true });
+  }
+});
