@@ -213,10 +213,13 @@ test('plugin registers 4 tools with correct security flags (static)', () => {
   // ponytail: static check avoids needing @deepseek-ai/schemastery in test env
 });
 
-test('client card uses plugin.item with prefixed classes and theme vars', () => {
+test('client card uses a live seat with prefixed classes and theme vars', () => {
   const text = read('lib/client.js');
-  assert.ok(text.includes("name: 'settings.plugin.item'"));
-  assert.ok(text.includes("key: NS"));
+  // settings.plugin.item was retired before DSH 0.1.7-rc.2: one occurrence in the
+  // whole 0.1.7-rc.2 tree against 54 of plugins.item.
+  assert.ok(text.includes("name: 'plugins.row.config'"), 'card must sit on a live seat');
+  assert.ok(!text.includes("name: 'settings.plugin.item'"), 'the retired seat must be gone');
+  assert.ok(text.includes("key: ROW_CONFIG_KEY"));
   assert.ok(text.includes('tm-card'));
   assert.ok(text.includes('var(--dsw-alias-border-l2)'));
   assert.ok(text.includes('border-radius:12px'));
@@ -242,11 +245,11 @@ test('browser entry compatible with DSH 0.1.2-alpha.2 (no dsh-client-runtime)', 
 
 test('client registration is declaration-safe (alpha2 SlotCore)', () => {
   const text = read('lib/client.js');
-  // Both seats must go through slots.inject: the Plugins page row seat the current
-  // core renders, and the legacy settings.plugin.item card.
-  assert.ok(text.includes("ctx.slots.inject(seat.name") || text.includes('ctx.slots.inject(seat.name'), 'must use slots.inject for the settings seats');
+  // The settings seats must go through slots.inject. The row seat is the one both
+  // 0.1.7-rc.2 and 0.2.0 render; settings.plugin.item is retired and gone.
+  assert.ok(text.includes("ctx.slots.inject(seat.name"), 'must use slots.inject for the settings seats');
   assert.ok(text.includes("name: 'plugins.row.config'"), 'row seat is declared');
-  assert.ok(text.includes("name: 'settings.plugin.item'"), 'legacy seat is declared');
+  assert.ok(!text.includes("name: 'settings.plugin.item'"), 'the retired seat must not be declared');
   assert.ok(text.includes('ctx.inject([\'betterSidebar\']') || text.includes('ctx.inject(["betterSidebar"]'), 'betterSidebar via inject single path');
   // old direct double-path must be gone (call site, not definition)
   assert.equal((text.match(/registerBetterSidebar\(ctx\);/g) || []).length, 0, 'should not have direct registerBetterSidebar(ctx); double path');
@@ -525,7 +528,11 @@ test("client sidebar matrix handles all four layout combinations safely", () => 
 
     return {
       registeredSlots,
-      hasSettings: registeredSlots.some(s => s.desc.name === "settings.plugin.item"),
+      // The card must mount on a seat both 0.1.7-rc.2 and 0.2.0 render.
+      // settings.plugin.item was retired before 0.1.7-rc.2.
+      hasSettings: registeredSlots.some(
+        s => s.desc.name === "plugins.row.config" || s.desc.name === "plugins.item",
+      ),
       hasNativePane: registeredSlots.some(s => s.desc.name === "sidebar.right.pane.tab"),
     };
   }
@@ -954,10 +961,16 @@ test('setMax applies the runtime snapshot cap, deletes evicted refs and supports
   assert.ok(deletedRefs.includes('refs/dsh-time-machine/g1'));
   assert.ok(deletedRefs.includes('refs/dsh-time-machine/g2'));
 
-  // 4. Test host apply wiring (scope.watch registration)
+  // 4. Host apply wiring. The trigger is loader/volatile-update, which is what
+  // both DSH 0.1.7-rc.2 and 0.2.0 emit after re-merging volatile profile entries.
+  // The old scope.watch() came from settings.register, which exists in neither
+  // release, so that wiring could never fire.
   const host = read('lib/index.js');
-  assert.ok(host.includes('const syncMax = () => engine.setMax('), 'host syncMax invokes setMax');
-  assert.ok(host.includes('scope.watch(syncMax)'), 'settings watcher bound to syncMax');
+  const code = host.replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(code.includes('engine.setMax('), 'applying settings invokes setMax');
+  assert.ok(code.includes("ctx.on('loader/volatile-update'"), 'settings changes are bound to loader/volatile-update');
+  assert.ok(code.includes('plainConfig('), 'volatile boxes are unwrapped before reading maxSnapshots');
+  assert.doesNotMatch(code, /scope\.watch\(/, 'ConfigForm has no watch() in either release');
 });
 
 test('ShadowSnapshotEngine cleanupOrphanedIndices skips git commands when not a git repository (issues #57, #61)', async () => {
