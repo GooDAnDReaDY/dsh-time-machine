@@ -53,6 +53,48 @@ test('the host applies settings on loader/volatile-update, not a dead scope.watc
   assert.doesNotMatch(c, /settings\s*\.\s*register\s*\(/, 'settings.register exists in neither release')
 })
 
+test('host does not pass raw config with accessors to structuredClone (issue #6)', () => {
+  const c = code(host)
+  assert.doesNotMatch(c, /structuredClone\s*\(\s*config\s*\)/, 'structuredClone throws DataCloneError on volatile accessors')
+})
+
+test('host apply handles volatile accessor boxes without DataCloneError (issue #6)', async () => {
+  const { apply } = await import('../lib/index.js')
+  const warnLogs = []
+  let volatileUpdateHandler = null
+
+  const mockCtx = {
+    inject: () => {},
+    on: (event, handler) => {
+      if (event === 'loader/volatile-update') volatileUpdateHandler = handler
+    },
+    effect: (cb) => { try { return cb() } catch {} },
+    logger: {
+      warn: (msg) => { warnLogs.push(msg) },
+      error: () => {}
+    },
+    tools: { register: () => {} },
+    webServer: { registerRoute: () => {} },
+    workspace: { cwd: '/tmp' }
+  }
+
+  let currentMax = 35
+  const mockConfig = {
+    maxSnapshots: { get: () => currentMax },
+    autoSnapshotEnabled: { get: () => true },
+    autoHealPrompt: { get: () => false }
+  }
+
+  assert.doesNotThrow(() => apply(mockCtx, mockConfig))
+  assert.ok(!warnLogs.some(msg => msg.includes('failed to apply maxSnapshots')), 'must not fail applying maxSnapshots')
+
+  // verify loader/volatile-update re-applies without error
+  currentMax = 42
+  assert.equal(typeof volatileUpdateHandler, 'function', 'must register volatile-update listener')
+  volatileUpdateHandler()
+  assert.ok(!warnLogs.some(msg => msg.includes('failed to apply maxSnapshots')), 'must not fail on update')
+})
+
 test('the card is on a live seat and the retired one is gone', () => {
   const c = code(client)
   assert.ok(c.includes("'plugins.row.config'"))
