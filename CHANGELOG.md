@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.25
+
+### Fixed
+- **Crash on startup and first turn on DSH 0.1.7+/0.2.0 due to DataCloneError** (GitHub #6, #73): volatile schema fields in `config` are passed as accessor objects with `get()` functions. Calling `structuredClone(config)` threw `DataCloneError`, preventing `engine.setMax` from applying and terminating the host turn on the first turn. Volatile accessors are now safely unwrapped with `plainConfig` before schema evaluation.
+
 ## 0.1.24
 
 ### Fixed
