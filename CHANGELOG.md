@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.26
+
+### Fixed
+- **Silent degradation to memory-only snapshots on DSH 0.2.0-rc.2** (GitHub #7, #76): `cwdOf()` now resolves workspaces across kernel variations by checking `ctx.workspaceRegistry` (`.current`, `.active`, `.list`), `session.workspace.path`, and `execution.path`/`execution.workspacePath`.
+- **Explicit warning when snapshot target is not a Git repository**: Prevents silent degradation to memory-only snapshots without diagnostic feedback when auto-snapshots run outside a Git workspace.
+- **Rollback file index cleanup**: Added explicit Git staging index reset (`git reset HEAD -- <path>`) following file rollbacks so files do not remain staged in the index.
+
 ## 0.1.25
 
 ### Fixed
