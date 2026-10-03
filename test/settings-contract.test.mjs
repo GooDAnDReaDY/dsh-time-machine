@@ -95,6 +95,81 @@ test('host apply handles volatile accessor boxes without DataCloneError (issue #
   assert.ok(!warnLogs.some(msg => msg.includes('failed to apply maxSnapshots')), 'must not fail on update')
 })
 
+test('cwdOf resolves workspace from workspaceRegistry and entity path (issue #7)', async () => {
+  const { cwdOf } = await import('../lib/index.js')
+
+  // 1. ctx.workspaceRegistry.list()[0].path (DSH 0.2.0-rc.2 kernel)
+  const ctxWithRegistryList = {
+    workspaceRegistry: {
+      list: () => [{ id: 'w1', path: '/var/repos/project-a', title: 'Project A' }]
+    }
+  }
+  assert.equal(cwdOf(null, ctxWithRegistryList), '/var/repos/project-a')
+
+  // 2. ctx.workspaceRegistry.current.path
+  const ctxWithRegistryCurrent = {
+    workspaceRegistry: {
+      current: { path: '/var/repos/current-project' }
+    }
+  }
+  assert.equal(cwdOf(null, ctxWithRegistryCurrent), '/var/repos/current-project')
+
+  // 3. session.workspace.path
+  const sessionWithWsPath = {
+    workspace: { path: '/var/repos/session-ws' }
+  }
+  assert.equal(cwdOf(sessionWithWsPath, {}), '/var/repos/session-ws')
+
+  // 4. session.workspacePath
+  const sessionWithWsPathProp = {
+    workspacePath: '/var/repos/session-wspath'
+  }
+  assert.equal(cwdOf(sessionWithWsPathProp, {}), '/var/repos/session-wspath')
+
+  // 5. configured workspacePath setting overrides default fallback
+  assert.equal(cwdOf(null, ctxWithRegistryList, '/var/repos/custom-override'), '/var/repos/custom-override')
+
+  // 6. execution.cwd / explicit target takes precedence
+  assert.equal(cwdOf({ cwd: '/explicit/target' }, ctxWithRegistryList), '/explicit/target')
+})
+
+test('snapshot creation emits warning and rollbackFile resets index (issue #7)', async () => {
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js')
+  const warnings = []
+  const origWarn = console.warn
+  console.warn = (...args) => warnings.push(args.join(' '))
+
+  try {
+    const commands = []
+    const eng = new ShadowSnapshotEngine({
+      exec: async (cmd, args) => {
+        commands.push([cmd, ...args])
+        if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'false' }
+        if (args[0] === 'ls-tree') return { stdout: '100644 blob abc1234	lib/test.js' }
+        return { stdout: '' }
+      }
+    })
+
+    // createSnapshot in non-git directory warns rather than degrading silently
+    const snap = await eng.createSnapshot('auto:turn:1', { cwd: '/non/git/dir' })
+    assert.equal(snap.commit, null)
+    assert.ok(warnings.some(w => w.includes('is not a git repository')), 'must warn about non-git directory')
+
+    // rollbackFile resets staged index after checkout
+    eng.snapshots.push({ id: 's2', commit: 'c2', ref: 'refs/s2', sessionId: 'sess' })
+    eng.exec = async (cmd, args) => {
+      commands.push([cmd, ...args])
+      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'true' }
+      if (args[0] === 'ls-tree') return { stdout: '100644 blob abc1234	lib/test.js' }
+      return { stdout: '' }
+    }
+    await eng.rollbackFile('s2', 'lib/test.js', { confirm: true, cwd: '/app' })
+    assert.ok(commands.some(c => c[0] === 'git' && c[1] === 'reset' && c[2] === 'HEAD' && c[4] === 'lib/test.js'), 'must unstage file from index')
+  } finally {
+    console.warn = origWarn
+  }
+})
+
 test('the card is on a live seat and the retired one is gone', () => {
   const c = code(client)
   assert.ok(c.includes("'plugins.row.config'"))
