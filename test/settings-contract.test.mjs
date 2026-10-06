@@ -202,3 +202,91 @@ test('peer ranges accept the 0.1.7 and 0.2.0 DSH package lines', async () => {
     assert.ok(semver.satisfies('0.1.7-rc.2', range), name + ' ' + range + ' must accept 0.1.7-rc.2')
   }
 })
+
+test('tools resolve workspace and sessionId when omitted in tool call (GitHub #7 follow-up, #86)', async () => {
+  const { cwdOf, sessionIdOf, apply } = await import('../lib/index.js')
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js')
+  const registeredTools = new Map()
+
+  // 1. Tool registration & agent execution resolution
+  const mockCtx = {
+    tools: {
+      register: (tool) => {
+        registeredTools.set(tool.name, tool)
+      }
+    },
+    effect: (fn) => fn(),
+    on: () => () => {},
+  }
+
+  apply(mockCtx, { autoSnapshotEnabled: true })
+  const createTool = registeredTools.get('time_machine_checkpoint_create')
+  assert.ok(createTool, 'time_machine_checkpoint_create tool must be registered')
+
+  // Execution object with execution.agent.session
+  const execWithAgent = {
+    agent: {
+      session: {
+        id: 'session-xyz-123',
+        workspace: { path: '/home/user/project-alpha' }
+      }
+    }
+  }
+
+  // Verify cwdOf resolves from execution.agent
+  assert.equal(cwdOf(execWithAgent, mockCtx), '/home/user/project-alpha')
+  assert.equal(sessionIdOf(execWithAgent, mockCtx), 'session-xyz-123')
+
+  // 2. Active session event tracking and tool fallback when cwd/sessionId is omitted
+  let eventHandler = null
+  const eventCtx = {
+    tools: { register: (tool) => registeredTools.set(tool.name, tool) },
+    effect: (fn) => fn(),
+    on: (evt, handler) => {
+      if (evt === 'session/event') eventHandler = handler
+      return () => {}
+    }
+  }
+
+  apply(eventCtx, { autoSnapshotEnabled: true })
+  const createTool2 = registeredTools.get('time_machine_checkpoint_create')
+  assert.ok(typeof eventHandler === 'function', 'session/event handler must be registered')
+
+  // Simulate turn/start event establishing active session and workspace
+  eventHandler(
+    { id: 'session-active-99', workspace: { path: '/home/user/active-repo' } },
+    { type: 'turn/start', turnId: 'turn-1' }
+  )
+
+  // Empty execution (as received on kernel 0.2.0-rc.2 when agent/session is omitted)
+  const emptyExec = { token: 't1', callId: 'c1', name: 'time_machine_checkpoint_create' }
+
+  // Tool execution without cwd or sessionId resolves from last active session and warns if not git repo
+  const res = await createTool2.execute({ label: 'manual checkpoint' }, emptyExec)
+  assert.equal(res.success, true)
+  assert.equal(res.snapshot.sessionId, 'session-active-99')
+  assert.ok(res.warning, 'must contain warning when not a git repo')
+
+  // 3. Volatile workspacePath unwrapped on initial resolve (issue #80)
+  const volatileBox = { get: () => '/custom/configured/workspace' }
+  assert.equal(cwdOf(null, mockCtx, volatileBox), '/custom/configured/workspace')
+
+  // 4. Rollback and diff use snap.cwd when customCwd is omitted
+  const eng = new ShadowSnapshotEngine({
+    cwd: '/base/repo',
+    exec: async (cmd, args) => {
+      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'true' }
+      if (args[0] === 'ls-tree') return { stdout: '100644 blob abc1234\ttest.txt' }
+      return { stdout: '' }
+    }
+  })
+  const snapWithCwd = {
+    id: 'snap-recorded',
+    commit: 'c-rec',
+    ref: 'refs/rec',
+    sessionId: 'sess-rec',
+    cwd: '/recorded/repo/path'
+  }
+  eng.snapshots.push(snapWithCwd)
+  assert.equal(eng.getCwdForSnapshot('snap-recorded'), '/recorded/repo/path')
+})
