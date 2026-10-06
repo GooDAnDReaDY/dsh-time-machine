@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.27
+
+### Fixed
+- **Tool calls omitting `cwd` or `sessionId` resolve correctly** (GitHub #7, #86): `time_machine_checkpoint_create`, `time_machine_file_rollback`, and other manual tool operations now resolve session and workspace context via `execution.agent.session`, falling back to the active session workspace (`sessionCwdMap` / `lastActiveCwd`) instead of failing or defaulting to process root.
+- **Selective rollback and diff track snapshot workspace**: Each snapshot record now retains its originating repository path (`snap.cwd`), allowing `time_machine_file_rollback`, `rollbackSnapshot`, and `diff` to target the correct workspace even when `cwd` is omitted in the tool call.
+- **Explicit warning when checkpoint degrades to memory-only**: `time_machine_checkpoint_create` now includes an explicit `warning` field when a checkpoint cannot produce a Git commit because the workspace is not a Git repository.
+- **Boot-time unwrap of volatile settings** (#80): `plainConfig` now unwraps volatile accessor boxes on the initial resolve, ensuring configured `workspacePath` is respected from startup.
+
 ## 0.1.26
 
 ### Fixed
