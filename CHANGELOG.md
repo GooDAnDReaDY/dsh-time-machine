@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.28
+
+### Security
+- **Sanitize HTTP Host header and reject header spoofing** (#82): `isTrustedSettingsRequest` strictly inspects the verified `Host` header, eliminating trust in spoofable `X-Forwarded-Host`. Requests without origin/referer headers are now strictly restricted to loopback addresses, preventing LAN clients from bypassing CSRF protection.
+
+### Added
+- **Automatic pre-rollback snapshot protection** (#81): `rollbackSnapshot` now automatically creates a `pre-rollback` checkpoint before executing destructive `git clean -fd` and index resets. Both modified and untracked files are preserved, returning `preRollbackId` in the response and surfacing recovery notices in the web interface.
+- **Comprehensive test suite** (#84): Added `test/http-updater-routes.test.mjs` providing exhaustive coverage for `writeJson`, `readBody`, the complete CSRF vector matrix, updater semver/security validation, and mutating web routes (`405 Method Not Allowed`, `403 Forbidden`, `400 Bad Request`). Total test count expanded to 76 tests.
+
+### Changed
+- **Unified plugin logging** (#77): Passed `ctx.logger` into `ShadowSnapshotEngine` and migrated all 18 host-side diagnostic warnings and errors from raw `console.*` to structured plugin logging.
+- **Package distribution files** (#83): Added localized `README.zh.md` and `README.ru.md` documentation files to the npm package `files` declaration.
+- **Repository cleanup** (#85): Removed extraneous `=` artifact file from the Git repository root.
+
 ## 0.1.27
 
 ### Fixed
