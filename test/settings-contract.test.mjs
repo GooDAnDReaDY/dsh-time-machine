@@ -290,3 +290,57 @@ test('tools resolve workspace and sessionId when omitted in tool call (GitHub #7
   eng.snapshots.push(snapWithCwd)
   assert.equal(eng.getCwdForSnapshot('snap-recorded'), '/recorded/repo/path')
 })
+
+test('rollback creates pre-rollback snapshot before git clean and both states are recoverable (issue #81)', async () => {
+  const fs = await import('node:fs/promises')
+  const os = await import('node:os')
+  const path = await import('node:path')
+  const { execFile: execFileCb } = await import('node:child_process')
+  const { promisify } = await import('node:util')
+  const execFile = promisify(execFileCb)
+  const { ShadowSnapshotEngine } = await import('../lib/snapshot.js')
+
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tm-prerollback-'))
+  try {
+    await execFile('git', ['init'], { cwd: tmpDir })
+    await execFile('git', ['config', 'user.name', 'Test User'], { cwd: tmpDir })
+    await execFile('git', ['config', 'user.email', 'test@test.local'], { cwd: tmpDir })
+
+    const fileA = path.join(tmpDir, 'fileA.txt')
+    await fs.writeFile(fileA, 'initial-content', 'utf8')
+    await execFile('git', ['add', 'fileA.txt'], { cwd: tmpDir })
+    await execFile('git', ['commit', '-m', 'initial commit'], { cwd: tmpDir })
+
+    const engine = new ShadowSnapshotEngine({ cwd: tmpDir })
+    const snap1 = await engine.createSnapshot('checkpoint-1')
+    assert.ok(snap1.commit, 'snap1 must have commit')
+
+    // Modify tracked file and add an untracked file
+    await fs.writeFile(fileA, 'modified-content', 'utf8')
+    const untracked = path.join(tmpDir, 'untracked.txt')
+    await fs.writeFile(untracked, 'untracked-content', 'utf8')
+
+    // Execute rollback to snap1
+    const rollbackRes = await engine.rollbackSnapshot(snap1.id, { confirm: true })
+    assert.equal(rollbackRes.rolledBack, true)
+    assert.ok(rollbackRes.preRollbackId, 'must return preRollbackId')
+
+    // Verify workspace is rolled back to snap1
+    assert.equal(await fs.readFile(fileA, 'utf8'), 'initial-content')
+    let untrackedExists = true
+    try {
+      await fs.access(untracked)
+    } catch {
+      untrackedExists = false
+    }
+    assert.equal(untrackedExists, false, 'untracked file must be cleaned up on rollback')
+
+    // Rollback to pre-rollback snapshot restores both modified and untracked file
+    const restoreRes = await engine.rollbackSnapshot(rollbackRes.preRollbackId, { confirm: true })
+    assert.equal(restoreRes.rolledBack, true)
+    assert.equal(await fs.readFile(fileA, 'utf8'), 'modified-content', 'modified content must be restored')
+    assert.equal(await fs.readFile(untracked, 'utf8'), 'untracked-content', 'untracked file must be restored')
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+  }
+})
