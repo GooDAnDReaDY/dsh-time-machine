@@ -616,7 +616,22 @@ test('http helper enforces payload limits, fail-closed CSRF check and writeJson 
   // CSRF fail-closed tests (Issue #38)
   assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'cross-site' } }), false);
   assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'same-site' } }), false);
-  assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'same-origin' } }), true);
+  assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'same-origin' }, socket: { remoteAddress: '127.0.0.1' } }), true);
+  assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'same-origin' }, socket: { remoteAddress: '192.168.1.50' } }), false);
+
+  // Security vectors (Issue #82): X-Forwarded-Host spoofing and LAN same-origin without loopback
+  assert.equal(isTrustedSettingsRequest({
+    headers: { origin: 'http://evil.com', 'x-forwarded-host': 'evil.com', host: 'my-host:3000' },
+    socket: { remoteAddress: '192.168.1.50' }
+  }), false);
+  assert.equal(isTrustedSettingsRequest({
+    headers: { referer: 'http://evil.com/path', 'x-forwarded-host': 'evil.com', host: 'my-host:3000' },
+    socket: { remoteAddress: '192.168.1.50' }
+  }), false);
+  assert.equal(isTrustedSettingsRequest({
+    headers: { 'sec-fetch-site': 'same-origin' },
+    socket: { remoteAddress: '192.168.1.50' }
+  }), false);
   assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'none' }, socket: { remoteAddress: '127.0.0.1' } }), true);
 
   // same-site explicitly rejected even with matching or subdomain origin (Issue #38)
