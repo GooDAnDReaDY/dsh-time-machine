@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.29
+
+### Security
+- **Strict rollback workspace validation** (#93): `rollbackSnapshot` and `rollbackFile` in `ShadowSnapshotEngine` now strictly validate any caller-supplied `cwd` against the snapshot's recorded workspace (`snap.cwd`). If a foreign or mismatched directory is supplied, the operation immediately aborts with `Target workspace mismatch`, preventing execution of `git read-tree`, `checkout-index`, and `git clean -fd` in arbitrary repositories on disk.
+- **Enforce private network subnet check on Origin auth** (#93): `isTrustedSettingsRequest` now explicitly verifies that the remote client connection originates from loopback (`127.0.0.1`, `::1`) or private RFC1918 subnets (`192.168.0.0/16`, `10.0.0.0/8`, `172.16.0.0/12`). Inbound requests from public WAN addresses are rejected with `403 Forbidden` even if `Host` and `Origin` headers match.
+
+### Added
+- **Regression test coverage** (#93): Added unit tests for foreign `cwd` rejection in `test/dsh-time-machine.test.mjs` and WAN IP rejection in `test/http-updater-routes.test.mjs`, expanding the test suite to 77 passing tests.
+
+### Changed
+- **Pinned npm registry in publishConfig** (#93): Explicitly configured `registry: "https://registry.npmjs.org/"` in `package.json` publishConfig.
+
 ## 0.1.28
 
 ### Security
