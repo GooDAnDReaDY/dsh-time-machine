@@ -149,6 +149,23 @@ test('isTrustedSettingsRequest security matrix', () => {
   // Loopback with sec-fetch-site none
   assert.equal(isTrustedSettingsRequest({ headers: { 'sec-fetch-site': 'none' }, socket: { remoteAddress: '127.0.0.1' } }), true)
 
+  // Public WAN IP rejected even if Host and Origin match (Issue #93)
+  assert.equal(isTrustedSettingsRequest({
+    headers: { origin: 'http://victim-dsh:3000', host: 'victim-dsh:3000', 'sec-fetch-site': 'same-origin' },
+    socket: { remoteAddress: '203.0.113.195' },
+  }), false)
+
+  assert.equal(isTrustedSettingsRequest({
+    headers: { referer: 'http://victim-dsh:3000/dsh-time-machine', host: 'victim-dsh:3000', 'sec-fetch-site': 'same-origin' },
+    socket: { remoteAddress: '203.0.113.195' },
+  }), false)
+
+  // Public WAN IP rejected on empty origin/referer (Issue #93)
+  assert.equal(isTrustedSettingsRequest({
+    headers: {},
+    socket: { remoteAddress: '203.0.113.195' },
+  }), false)
+
   // Invalid Origin / null Origin rejected
   assert.equal(isTrustedSettingsRequest({ headers: { origin: 'null', host: 'my-host:3000' }, socket: { remoteAddress: '192.168.1.50' } }), false)
   assert.equal(isTrustedSettingsRequest({ headers: { origin: 'not-a-valid-url', host: 'my-host:3000' }, socket: { remoteAddress: '192.168.1.50' } }), false)
