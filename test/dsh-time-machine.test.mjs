@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
+import os from 'node:os';
+import { execSync } from 'node:child_process';
+import { ShadowSnapshotEngine } from '../lib/snapshot.js';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const read = (name) => fs.readFileSync(path.join(root, name), 'utf8');
@@ -1095,5 +1098,45 @@ test('rollbackFile rejects paths outside workspace and prevents traversal escape
     );
   } finally {
     await fsPromises.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('rollbackSnapshot and rollbackFile reject foreign cwd mismatch (Issue #93)', async () => {
+  const tmp = path.join(os.tmpdir(), 'tm-sec-test-' + Date.now());
+  const foreignDir = path.join(os.tmpdir(), 'tm-foreign-dir-' + Date.now());
+  fs.mkdirSync(tmp, { recursive: true });
+  fs.mkdirSync(foreignDir, { recursive: true });
+  try {
+    execSync('git init', { cwd: tmp });
+    execSync('git config user.email "test@example.com"', { cwd: tmp });
+    execSync('git config user.name "Test"', { cwd: tmp });
+    fs.writeFileSync(path.join(tmp, 'file.txt'), 'hello');
+    execSync('git add . && git commit -m "init"', { cwd: tmp });
+
+    const engine = new ShadowSnapshotEngine({ cwd: tmp });
+    const snap = await engine.createSnapshot('test-snap', { cwd: tmp });
+
+    // Attempt rollbackSnapshot with foreign cwd
+    await assert.rejects(
+      async () => {
+        await engine.rollbackSnapshot(snap.id, { confirm: true, cwd: foreignDir });
+      },
+      /Target workspace mismatch/
+    );
+
+    // Attempt rollbackFile with foreign cwd
+    await assert.rejects(
+      async () => {
+        await engine.rollbackFile(snap.id, 'file.txt', { confirm: true, cwd: foreignDir });
+      },
+      /Target workspace mismatch/
+    );
+
+    // Matching cwd succeeds
+    const res = await engine.rollbackSnapshot(snap.id, { confirm: true, cwd: tmp });
+    assert.equal(res.rolledBack, true);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(foreignDir, { recursive: true, force: true });
   }
 });
