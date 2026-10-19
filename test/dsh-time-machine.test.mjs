@@ -1140,3 +1140,111 @@ test('rollbackSnapshot and rollbackFile reject foreign cwd mismatch (Issue #93)'
     fs.rmSync(foreignDir, { recursive: true, force: true });
   }
 });
+
+test('time_machine_* tools and snapshot engine return lossless JSON in non-git workspaces (GitHub #8, Issue #96)', async () => {
+  function assertLosslessJson(val) {
+    function check(v, p = '') {
+      if (v === undefined) throw new Error(`Lossless JSON violation: undefined at "${p}"`);
+      if (typeof v === 'function' || typeof v === 'symbol') {
+        throw new Error(`Lossless JSON violation: ${typeof v} at "${p}"`);
+      }
+      if (typeof v === 'number' && !Number.isFinite(v)) {
+        throw new Error(`Lossless JSON violation: non-finite number at "${p}"`);
+      }
+      if (v !== null && typeof v === 'object') {
+        if (Array.isArray(v)) {
+          v.forEach((item, idx) => check(item, `${p}[${idx}]`));
+        } else {
+          for (const [k, item] of Object.entries(v)) {
+            check(item, p ? `${p}.${k}` : k);
+          }
+        }
+      }
+    }
+    check(val);
+    const roundtrip = JSON.parse(JSON.stringify(val));
+    assert.deepStrictEqual(roundtrip, val);
+  }
+
+  const tmpNonGit = path.join(os.tmpdir(), 'tm-non-git-lossless-' + Date.now());
+  fs.mkdirSync(tmpNonGit, { recursive: true });
+
+  try {
+    const engine = new ShadowSnapshotEngine({ cwd: tmpNonGit });
+    const snap = await engine.createSnapshot('test-non-git-lossless', { sessionId: 'sess-lossless', cwd: tmpNonGit });
+
+    // 1. Verify engine snapshot in non-git directory is lossless JSON
+    assert.equal(Object.prototype.hasOwnProperty.call(snap, 'cwd'), false, 'cwd property must be omitted when not git');
+    assertLosslessJson(snap);
+
+    // 2. Verify listSnapshots is lossless JSON
+    const list = engine.listSnapshots('sess-lossless');
+    assert.equal(list.length, 1);
+    assertLosslessJson(list);
+
+    // 3. Verify registered tools return lossless JSON
+    const registeredTools = new Map();
+    const mockCtx = {
+      tools: {
+        register: (t) => registeredTools.set(t.name, t),
+      },
+      effect: (fn) => fn(),
+      on: () => () => {},
+      webServer: { register: () => () => {} },
+    };
+
+    const { apply } = await import('../lib/index.js');
+    apply(mockCtx, { autoSnapshotEnabled: false });
+
+    const createTool = registeredTools.get('time_machine_checkpoint_create');
+    const listTool = registeredTools.get('time_machine_checkpoint_list');
+    assert.ok(createTool, 'createTool must be registered');
+    assert.ok(listTool, 'listTool must be registered');
+
+    const createRes = await createTool.execute(
+      { label: 'checkpoint in non-git', sessionId: 'sess-tool-lossless', cwd: tmpNonGit },
+      {}
+    );
+    assert.equal(createRes.success, true);
+    assert.ok(createRes.warning);
+    assert.equal(Object.prototype.hasOwnProperty.call(createRes.snapshot, 'cwd'), false);
+    assertLosslessJson(createRes);
+
+    const listRes = await listTool.execute(
+      { sessionId: 'sess-tool-lossless' },
+      {}
+    );
+    assert.equal(listRes.success, true);
+    assert.equal(listRes.snapshots.length, 1);
+    assertLosslessJson(listRes);
+
+    // 4. Verify rollbackSnapshot with createPreRollback: false returns lossless JSON
+    const tmpGit = path.join(os.tmpdir(), 'tm-git-lossless-' + Date.now());
+    fs.mkdirSync(tmpGit, { recursive: true });
+    try {
+      execSync('git init', { cwd: tmpGit });
+      execSync('git config user.email "test@example.com"', { cwd: tmpGit });
+      execSync('git config user.name "Test"', { cwd: tmpGit });
+      fs.writeFileSync(path.join(tmpGit, 'init.txt'), 'hello');
+      execSync('git add . && git commit -m "init"', { cwd: tmpGit });
+
+      const gitEngine = new ShadowSnapshotEngine({ cwd: tmpGit });
+      const gitSnap = await gitEngine.createSnapshot('git-checkpoint', { cwd: tmpGit });
+      assertLosslessJson(gitSnap);
+
+      const rollbackRes = await gitEngine.rollbackSnapshot(gitSnap.id, {
+        confirm: true,
+        cwd: tmpGit,
+        createPreRollback: false,
+      });
+      assert.equal(rollbackRes.rolledBack, true);
+      assert.equal(Object.prototype.hasOwnProperty.call(rollbackRes, 'preRollbackId'), false);
+      assert.equal(Object.prototype.hasOwnProperty.call(rollbackRes, 'preRollbackSnapshot'), false);
+      assertLosslessJson(rollbackRes);
+    } finally {
+      fs.rmSync(tmpGit, { recursive: true, force: true });
+    }
+  } finally {
+    fs.rmSync(tmpNonGit, { recursive: true, force: true });
+  }
+});
