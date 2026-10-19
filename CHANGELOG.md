@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.30
+
+### Fixed
+- **Lossless JSON compliance in non-git workspaces** (#96): Fixed an issue where `time_machine_*` tools (`time_machine_checkpoint_create`, `time_machine_checkpoint_list`, etc.) failed with `value is not lossless JSON` when executed in a workspace without an initialized Git repository. In `ShadowSnapshotEngine` (`lib/snapshot.js`), `cwd` property is now omitted when `hasGit` is false instead of being assigned `undefined`.
+- **Eliminated explicit undefined in rollback results** (#96): In `_doRollbackSnapshot`, `preRollbackId` and `preRollbackSnapshot` are now conditionally attached only when a pre-rollback checkpoint actually exists, preventing `undefined` property values from breaking lossless JSON serialization.
+
+### Added
+- **Comprehensive lossless JSON regression tests** (#96): Added unit test suite in `test/dsh-time-machine.test.mjs` verifying strict lossless JSON round-tripping for non-git checkpoint creation, list operations, and selective rollbacks, expanding the test suite to 78 passing tests.
+
 ## 0.1.29
 
 ### Security
