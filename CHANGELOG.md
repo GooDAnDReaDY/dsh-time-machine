@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.31
+
+### Security
+- **Canonical DSH session authentication & fail-closed LAN guard** (#99): Integrated `getConnection(ctx)` and delegated request verification to DSH core service `connection.requestRejection(request)` across all 7 HTTP web routes (`/snapshots`, `/diff`, `/create`, `/delete`, `/prune`, `/rollback`, `/rollback-file`) and the plugin updater (`lib/updater.js`). Unauthenticated LAN clients and reverse-proxy requests lacking DSH session authentication are rejected with HTTP 401 Unauthorized / 403 Forbidden fail-closed, preventing unauthorized remote execution of snapshot rollback, deletion, pruning, creation, and inspection.
+- **Fail-closed network boundary when auth service is absent** (#99): In environments where the DSH connection service is not registered, all non-loopback requests from LAN or WAN are rejected with HTTP 401 Unauthorized, eliminating the possibility of spoofing `Origin`, `Host`, or `Sec-Fetch-Site` headers to bypass guards.
+
+### Added
+- **Authentication & session verification test suite** (#99): Added comprehensive test coverage in `test/http-updater-routes.test.mjs` verifying `getConnection(ctx)` context resolution, `assertTrustedSettingsRequest` auth status matrix (401/403/fail-closed/admitted), mutating route protection against unauthenticated LAN callers, and updater rejection gating. Total test count expanded to 82 passing tests.
+
 ## 0.1.30
 
 ### Fixed
