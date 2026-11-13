@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.32
+
+### Quality & Tooling
+- **Release artifact hygiene and pack size check** (#101): Added `scripts/pack-check.mjs` enforcing clean working trees free of release tarballs and verifying that no single file exceeds the 256 KiB DSH Store budget. Removed stray tarballs from checkout.
+- **Repository governance & deployment entry points** (#102): Added standard project navigation files `AGENTS.md`, `index.md`, and canonical `deploy.sh` script. Configured `.gitattributes` with `export-ignore`, ensuring internal governance documents remain strictly excluded from npm packages and public GitHub mirrors.
+- **Static code analysis** (#103): Integrated ESLint 9 with flat configuration (`eslint.config.js`) enforcing `no-undef: error` across server, client, test, and script sources. Added `npm run lint` to test and deployment preflight gates.
+- **Dependency audit resolution** (#104): Resolved moderate and high transitive vulnerabilities (`zod`, `fast-uri`) via package overrides, achieving 0 vulnerabilities on `npm audit --omit=dev`.
+
 ## 0.1.31
 
 ### Security

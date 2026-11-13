@@ -1,6 +1,6 @@
 {
   "name": "@goodandready/dsh-time-machine",
-  "version": "0.1.31",
+  "version": "0.1.32",
   "description": "DSH plugin for smart checkpoints, workspace safety guards, and instant rollback",
   "type": "module",
   "main": "lib/index.js",
@@ -19,7 +19,9 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node --test test/*.test.mjs"
+    "test": "npm run lint && npm run pack:check && node --test test/*.test.mjs",
+    "lint": "eslint lib/ test/ scripts/",
+    "pack:check": "node scripts/pack-check.mjs"
   },
   "keywords": [
     "dsh",
@@ -61,5 +63,12 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5"
+  },
+  "overrides": {
+    "zod": "^4.6.6",
+    "fast-uri": "^3.1.9"
   }
 }
